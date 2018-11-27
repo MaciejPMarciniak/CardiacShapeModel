@@ -30,7 +30,7 @@
   - Post-simplification cleaning: Off
   - Simplify only selected faces: Off
 
-###TODO:
+### TODO:
 The point correspondence must be established between meshes, then they can be applied to the atlas class.
 
 ## Remeshing:

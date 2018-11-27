@@ -305,7 +305,7 @@ class Heart:
         mha_writer.Write()
 
     def write_stl(self):
-        output_filename = self.filename + '_new.stl'
+        output_filename = self.filename + '.stl'
 
         # Get surface of the mesh
         self.extract_surface()
@@ -322,7 +322,7 @@ class Heart:
 
         obj_writer = vtk.vtkOBJExporter()
         obj_writer.SetRenderWindow(render_window)
-        obj_writer.SetFilePrefix(output_filename + '_new')
+        obj_writer.SetFilePrefix(output_filename)
         obj_writer.Write()
 
     def write_vtk(self, postscript='_new', type_='PolyData'):
@@ -570,14 +570,19 @@ def h_case_pipeline(start_=1, end_=20):
 
 
 if __name__ == '__main__':
+    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', )
+    #    h_case_pipeline(start_=18, end_=18)
+    relevant_files = glob.glob(os.path.join(absolute_data_path, 'case_', '*centered*.vtk'))
+    print(relevant_files)
+    for shape in relevant_files:
 
-    h_case_pipeline(start_=18, end_=18)
-    # for i in range(1, 5):
-    # model = Heart('h_case_/h_case_' + str.zfill(str(1), 2) + '_surface.vtk')
-    # model.write_stl()
-    # model = Heart('Deformetrica_output/DeterministicAtlas__flow__heart__subject_sub' +
-    #               str.zfill(str(1), 2) + '__tp_10.vtk')
-    # model.subdivision(2)
+        model = Heart(shape)
+        model.scale(factor=(0.001, 0.001, 0.001))
+        model.write_obj()
+        model.write_stl()
+    # model = Heart('/home/mat/Deformetrica/deterministic_atlas_ct/output_tmp_10_def_10/DeterministicAtlas__flow__heart__subject_sub01__tp_10.vtk')
+    #     model.write_stl()
+
     # model = Heart('h_case_/h_case_01_surface_pd_centered.vtk')  # Relative, path to the file
 
 # # --Attempt to translate unstructured grid into mha image format----------

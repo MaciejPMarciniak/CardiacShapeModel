@@ -493,12 +493,13 @@ def split_chambers(_model, case=None):
     _model.translate_to_center()
     _mesh = _model.mesh
     # labels of chambers
-    lv = [1, 5, 7, 9, 18]
-    rv = [2, 6, 8, 10, 19]
+    lv = [1, 7, 9]
+    rv = [2, 8, 10]
     la = [3, 11, 12, 13, 14, 15]
     ra = [4, 16, 17]
-    # aorta = [5]
-    # pa = [6]
+    aorta = [5]
+    pa = [6]
+    
     surfaces = {'surface_lv': [], 'surface_rv': [], 'surface_la': [], 'surface_ra': [],
                 'surface_aorta': [], 'surface_pa': []}
 
@@ -512,10 +513,10 @@ def split_chambers(_model, case=None):
             surfaces['surface_la'].append(surface)
         elif i in ra:
             surfaces['surface_ra'].append(surface)
-        # elif i in aorta:
-        #     surfaces['surface_aorta'].append(surface)
-        # elif i in pa:
-        #     surfaces['surface_pa'].append(surface)
+        elif i in aorta:
+            surfaces['surface_aorta'].append(surface)
+        elif i in pa:
+            surfaces['surface_pa'].append(surface)
         else:
             print('Label {} doesn\'t belong to any chamber of interest'.format(i))
 

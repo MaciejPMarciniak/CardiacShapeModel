@@ -308,6 +308,7 @@ class Heart:
         output_filename = self.filename + '.stl'
 
         # Get surface of the mesh
+        print('Extracting surface to save as .STL file...')
         self.extract_surface()
 
         # Write file to .stl format
@@ -315,15 +316,18 @@ class Heart:
         stl_writer.SetFileName(output_filename)
         stl_writer.SetInputConnection(self.mesh.GetOutputPort())
         stl_writer.Write()
+        print('{} written succesfully'.format(output_filename))
 
     def write_obj(self):
         output_filename = self.filename
         render_window = self.visualize_mesh(False)
 
+        print('Saving PolyData in the OBJ file...')
         obj_writer = vtk.vtkOBJExporter()
         obj_writer.SetRenderWindow(render_window)
         obj_writer.SetFilePrefix(output_filename)
         obj_writer.Write()
+        print('{} written succesfully'.format(output_filename))
 
     def write_vtk(self, postscript='_new', type_='PolyData'):
         output_filename = self.filename + postscript + '.vtk'
@@ -488,7 +492,30 @@ def change_elem_tag(_mesh, label):
     return _mesh
 
 
-def split_chambers(_model, case=None):
+def split_chambers(model, return_as_surface=True):
+    model.translate_to_center()
+    surfaces = []
+    for i in range(1, int(model.scalar_range[1]) + 1):
+
+        x = model.threshold(i, i)
+        surfaces.append(x)
+
+    full_model_appended = vtk.vtkAppendFilter()
+    for surf in surfaces:
+        full_model_appended.AddInputConnection(surf.GetOutputPort())
+        # _
+    full_model_appended.Update()
+    model.mesh = full_model_appended
+    if return_as_surface:
+        model.extract_surface()
+        model.write_vtk(postscript='surf')
+        model.write_obj()
+    else:
+        model.write_vtk(postscript='tetra')
+    return model
+
+
+def split_and_combine_chambers(_model, case=None):
     # Thresholds related to arteries commented, as well as saving particular meshes
     _model.translate_to_center()
     _mesh = _model.mesh
@@ -562,7 +589,7 @@ def h_case_pipeline(start_=1, end_=20):
     # extract valves
     # apply_function_to_all('h_case', '',  start=start_, end=end_, ext='_sepvalves', function_=get_valve_surfaces)
     # split chambers
-    # apply_function_to_all('h_case_', '_surface_pd_centered',  start=start_, end=end_,ext='_surface_full', function_=split_chambers)
+    apply_function_to_all('h_case_', '_surface_pd_centered',  start=start_, end=end_,ext='_surface_full', function_=split_chambers)
     # decimate_heart
     apply_function_to_all('case_', '_pd_centered', start=start_, end=end_, ext='_delete', function_=decimate_heart)
     # write as mha
@@ -573,14 +600,15 @@ def h_case_pipeline(start_=1, end_=20):
 if __name__ == '__main__':
     absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', )
     #    h_case_pipeline(start_=18, end_=18)
-    relevant_files = glob.glob(os.path.join(absolute_data_path, 'case_', '*centered*.vtk'))
+    relevant_files = glob.glob(os.path.join(absolute_data_path, 'case_', 'tetra_case01.vtk'))
     print(relevant_files)
     for shape in relevant_files:
 
         model = Heart(shape)
-        model.scale(factor=(0.001, 0.001, 0.001))
-        model.write_obj()
-        model.write_stl()
+        split_model = split_chambers(model)
+        split_model.write_obj()
+        split_model.write_stl()
+
     # model = Heart('/home/mat/Deformetrica/deterministic_atlas_ct/output_tmp_10_def_10/DeterministicAtlas__flow__heart__subject_sub01__tp_10.vtk')
     #     model.write_stl()
 

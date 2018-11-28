@@ -1,9 +1,9 @@
 import vtk
 import numpy as np
-import vtkInterface
-import copy
 import os
 import glob
+import fnmatch
+
 
 class Heart:
 
@@ -15,7 +15,7 @@ class Heart:
         w.SetFileName(self.filename.split('/')[0] + '/errors.txt')
         vtk.vtkOutputWindow.SetInstance(w)
 
-        print('Reading the data...')
+        print('Reading the data from {}.{}...'.format(self.filename, self.input_type))
         if self.input_type == 'obj':
             self.mesh, self.scalar_range = self.read_obj()
         elif self.input_type == 'vtp':
@@ -23,15 +23,19 @@ class Heart:
         else:
             self.mesh, self.scalar_range = self.read_vtk(to_polydata)
 
+        self.scalar_range = [1.0, 17.0]  # Added for particular case of CT meshes
+        print('Corrected scalar range: {}'.format(self.scalar_range))
         self.center_of_heart = self.set_center(self.mesh)
 
-    def set_center(self, _mesh):
+    @staticmethod
+    def set_center(_mesh):
         centerofmass = vtk.vtkCenterOfMass()
         centerofmass.SetInputData(_mesh.GetOutput())
         centerofmass.Update()
         return np.array(centerofmass.GetCenter())
 
-    def unstructured_grid_to_poly_data(self, _algorithm):
+    @staticmethod
+    def unstructured_grid_to_poly_data(_algorithm):
         geometry_filter = vtk.vtkExtractGeometry()
         geometry_filter.SetInputConnection(_algorithm.GetOutputPort())
         geometry_filter.Update()
@@ -63,8 +67,9 @@ class Heart:
         renderer_window.AddRenderer(renderer)
 
         # Display the mesh
+        # noinspection PyArgumentList
         if display:
-            interactor = vtk.vtkRenderWindowInteractor()
+            interactor = vtk.vtkRenderWindowInteractor(actually='', one_of_its_subclasses='')
             interactor.SetRenderWindow(renderer_window)
             interactor.Initialize()
             interactor.Start()
@@ -75,7 +80,7 @@ class Heart:
     def translate_to_center(self):
         # vtkTransform.SetMatrix - enables for applying 4x4 transformation matrix to the meshes
         translate = vtk.vtkTransform()
-        translate.Translate(-self.center_of_heart)
+        translate.Translate(-self.center_of_heart[0], -self.center_of_heart[1], -self.center_of_heart[2])
         translate.Update()
         transformer = vtk.vtkTransformFilter()
         transformer.SetInputConnection(self.mesh.GetOutputPort())
@@ -98,7 +103,7 @@ class Heart:
 
     def scale(self, factor=(0.001, 0.001, 0.001)):
         scale = vtk.vtkTransform()
-        scale.Scale(factor)
+        scale.Scale(factor[0], factor[1], factor[2])
         transformer = vtk.vtkTransformFilter()
         transformer.SetInputConnection(self.mesh.GetOutputPort())
         transformer.SetTransform(scale)
@@ -202,7 +207,8 @@ class Heart:
         surface_filter.Update()
         self.mesh = surface_filter
 
-    def get_external_surface(self, _mesh, external=True):
+    @staticmethod
+    def get_external_surface(_mesh, external=True):
         _center = np.zeros(3)
         _bounds = np.zeros(6)
         _ray_start = np.zeros(3)
@@ -258,15 +264,20 @@ class Heart:
         reader.Update()
 
         if reader.IsFileUnstructuredGrid():
-            print('Reading Unstructured Grid...'); reader = vtk.vtkUnstructuredGridReader()
+            print('Reading Unstructured Grid...')
+            reader = vtk.vtkUnstructuredGridReader()
         elif reader.IsFilePolyData():
-            print('Reading Polygonal Mesh...'); reader = vtk.vtkPolyDataReader()
+            print('Reading Polygonal Mesh...')
+            reader = vtk.vtkPolyDataReader()
         elif reader.IsFileStructuredGrid():
-            print('Reading Structured Grid...'); reader = vtk.vtkStructuredGridReader()
+            print('Reading Structured Grid...')
+            reader = vtk.vtkStructuredGridReader()
         elif reader.IsFileStructuredPoints():
-            print('Reading Structured Points...'); reader = vtk.vtkStructuredPointsReader()
+            print('Reading Structured Points...')
+            reader = vtk.vtkStructuredPointsReader()
         elif reader.IsFileRectilinearGrid():
-            print('Reading Rectilinear Grid...'); reader = vtk.vtkRectilinearGridReader()
+            print('Reading Rectilinear Grid...')
+            reader = vtk.vtkRectilinearGridReader()
         else:
             print('Data format unknown...')
         reader.SetFileName(self.filename + '.' + self.input_type)
@@ -309,7 +320,7 @@ class Heart:
 
         # Get surface of the mesh
         print('Extracting surface to save as .STL file...')
-        self.extract_surface()
+        # self.extract_surface()
 
         # Write file to .stl format
         stl_writer = vtk.vtkSTLWriter()
@@ -327,24 +338,26 @@ class Heart:
         obj_writer.SetRenderWindow(render_window)
         obj_writer.SetFilePrefix(output_filename)
         obj_writer.Write()
-        print('{} written succesfully'.format(output_filename))
+        print('{} written succesfully'.format(output_filename + '.obj'))
 
     def write_vtk(self, postscript='_new', type_='PolyData'):
         output_filename = self.filename + postscript + '.vtk'
-        # self.visualize_mesh()
+        writer = None
         if type_ == 'PolyData':
             print('Saving PolyData...')
             writer = vtk.vtkPolyDataWriter()
         elif type_ == 'UG':
             print('Saving Unstructured Grid...')
             writer = vtk.vtkUnstructuredGridWriter()
+        else:
+            exit("Select \'Polydata\' or \'UG\' as type of the saved mesh")
         writer.SetInputConnection(self.mesh.GetOutputPort())
         writer.SetFileName(output_filename)
         writer.Update()
         writer.Write()
         print('{} written succesfully'.format(output_filename))
 
-    def write_vtk_points(self, postscript='_points', type_='Polydata'):
+    def write_vtk_points(self, postscript='_points'):
         output_filename = self.filename + postscript + '.vtk'
 
         point_cloud = vtk.vtkPolyData()
@@ -390,9 +403,9 @@ def apply_single_transformation_to_all(input_base, version, start=1, end=20, ext
         for case_no in range(start, end+1):
             case = input_base + '/' + input_base + str(case_no).zfill(2) + version + '.vtk'
             print(case)
-            model = Heart(case)
+            single_model = Heart(case)
             exec('model.' + function_ + args)
-            model.write_vtk(ext)
+            single_model.write_vtk(ext)
 
 
 def apply_function_to_all(input_base, version, start=1, end=20, ext='_new', function_=None):
@@ -400,32 +413,32 @@ def apply_function_to_all(input_base, version, start=1, end=20, ext='_new', func
         for case_no in range(start, end+1):
             case = input_base + '/' + input_base + str(case_no).zfill(2) + version + '.vtk'
             print(case)
-            model = Heart(case)
-            model = function_(model, case)
-            model.write_vtk(ext)
+            single_model = Heart(case)
+            single_model = function_(single_model, case)
+            single_model.write_vtk(ext)
 # ------------------------------------------------------------------------------------------------------------
 
 
 # -----ApplyToChambers----------------------------------------------------------------------------------------
-def apply_to_chambers(input_base, version, chambers_available, no=0, ext='_new', function_=None):
+def apply_to_chambers(input_base, version, chambers_available, start=1, end=20, ext='_new', function_=None):
     for chamber in chambers_available:
         version += chamber
-        apply_function_to_all(input_base, version, no, ext, function_)
+        apply_function_to_all(input_base, version, start, end, ext, function_)
 # ------------------------------------------------------------------------------------------------------------
 
 
 # -----Solve decimation---------------------------------------------------------------------------------------
-def hill_climb_with_magnitude(initial_x, eval_function, goal, model, step, max_iter=500):
+def hill_climb_with_magnitude(initial_x, eval_function, goal, this_model, step, max_iter=500):
     best_x = initial_x
     iteration = 0
-    current_result = eval_function(best_x, model)
+    current_result = eval_function(best_x, this_model)
     print('goal: {}'.format(goal))
     print('initial_result: {}'.format(current_result))
     while current_result != goal and iteration < max_iter:
         _step = (current_result - goal) * step
         print('step: {}'.format(_step))
         best_x += _step
-        current_result = eval_function(best_x, model)
+        current_result = eval_function(best_x, this_model)
         iteration += 1
         print('Iteration {}, decimated [%]: {} and point count: {}:'.format(iteration, best_x, current_result))
     return best_x
@@ -448,7 +461,7 @@ def decimate_heart(full_model, case=None):
     _model = full_model
     _model.smooth_laplacian(200)
     reduction = hill_climb_with_magnitude(initial_x=reduction, eval_function=eval_decimation,
-                                          goal=final_points, step=0.0005, model=_model)
+                                          goal=final_points, step=0.0005, this_model=_model)
     _model.decimation(reduction=reduction)
     _model.write_vtk(postscript='_decimated')
     return full_model
@@ -472,7 +485,7 @@ def decimate_chambers(full_model, case=None):
         if chamber == 'la':
             expected_number_of_points += FINAL_POINTS - built_points
         reduction = hill_climb_with_magnitude(initial_x=reduction, eval_function=eval_decimation,
-                                              goal=expected_number_of_points, step=0.001, model=_model)
+                                              goal=expected_number_of_points, step=0.001, this_model=_model)
         _model.decimation(reduction=reduction)
         sum_chamber_points += _model.mesh.GetOutput().GetNumberOfPoints()
         _model.normals()
@@ -492,12 +505,13 @@ def change_elem_tag(_mesh, label):
     return _mesh
 
 
-def split_chambers(model, return_as_surface=True):
-    model.translate_to_center()
-    surfaces = []
-    for i in range(1, int(model.scalar_range[1]) + 1):
+def split_chambers(_model, return_as_surface=True):
+    _model.translate_to_center()
 
-        x = model.threshold(i, i)
+    surfaces = []
+    for i in range(1, int(_model.scalar_range[1]) + 1):
+
+        x = _model.threshold(i, i)
         surfaces.append(x)
 
     full_model_appended = vtk.vtkAppendFilter()
@@ -505,14 +519,14 @@ def split_chambers(model, return_as_surface=True):
         full_model_appended.AddInputConnection(surf.GetOutputPort())
         # _
     full_model_appended.Update()
-    model.mesh = full_model_appended
+    _model.mesh = full_model_appended
     if return_as_surface:
-        model.extract_surface()
-        model.write_vtk(postscript='surf')
-        model.write_obj()
+        _model.extract_surface()
+        _model.write_vtk(postscript='surf')
+        _model.write_obj()
     else:
-        model.write_vtk(postscript='tetra')
-    return model
+        _model.write_vtk(postscript='tetra')
+    return _model
 
 
 def split_and_combine_chambers(_model, case=None):
@@ -600,14 +614,16 @@ def h_case_pipeline(start_=1, end_=20):
 if __name__ == '__main__':
     absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', )
     #    h_case_pipeline(start_=18, end_=18)
-    relevant_files = glob.glob(os.path.join(absolute_data_path, 'case_', 'tetra_case01.vtk'))
+    relevant_files = glob.glob(os.path.join(absolute_data_path, 'case_', 'tetra_meshes', 'h_case??surf_doubled.vtk'))
+    relevant_files.sort()
     print(relevant_files)
-    for shape in relevant_files:
+    for i, shape in enumerate(relevant_files):
 
         model = Heart(shape)
-        split_model = split_chambers(model)
-        split_model.write_obj()
-        split_model.write_stl()
+        # model.write_vtk(postscript='surf_doubled')
+        model.write_stl()
+        model.write_obj()
+
 
     # model = Heart('/home/mat/Deformetrica/deterministic_atlas_ct/output_tmp_10_def_10/DeterministicAtlas__flow__heart__subject_sub01__tp_10.vtk')
     #     model.write_stl()

@@ -1,0 +1,20 @@
+<!DOCTYPE FilterScript>
+<FilterScript>
+ <filter name="Remove Isolated pieces (wrt Diameter)">
+  <Param type="RichAbsPerc" max="211478" description="Enter max diameter of isolated pieces" min="0" name="MinComponentDiag" value="21147.8" tooltip="Delete all the connected components (floating pieces) with a diameter smaller than the specified one"/>
+  <Param type="RichBool" description="Remove unfreferenced vertices" name="removeUnref" value="true" tooltip="if true, the unreferenced vertices remaining after the face deletion are removed."/>
+ </filter>
+ <filter name="Select non Manifold Edges "/>
+ <filter name="Delete Selected Vertices"/>
+ <filter name="Select non Manifold Vertices"/>
+ <filter name="Delete Selected Vertices"/>
+ <filter name="Close Holes">
+  <Param type="RichInt" description="Max size to be closed " name="MaxHoleSize" value="30" tooltip="The size is expressed as number of edges composing the hole boundary"/>
+  <Param type="RichBool" description="Close holes with selected faces" name="Selected" value="false" tooltip="Only the holes with at least one of the boundary faces selected are closed"/>
+  <Param type="RichBool" description="Select the newly created faces" name="NewFaceSelected" value="true" tooltip="After closing a hole the faces that have been created are left selected. Any previous selection is lost. Useful for example for smoothing the newly created holes."/>
+  <Param type="RichBool" description="Prevent creation of selfIntersecting faces" name="SelfIntersection" value="true" tooltip="When closing an holes it tries to prevent the creation of faces that intersect faces adjacent to the boundary of the hole. It is an heuristic, non intersetcting hole filling can be NP-complete."/>
+ </filter>
+ <filter name="Remove Unreferenced Vertices"/>
+ <xmlfilter name="Compute Topological Measures"/>
+ <filter name="Split in Connected Components"/>
+</FilterScript>

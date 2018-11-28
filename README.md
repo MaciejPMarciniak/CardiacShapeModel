@@ -4,6 +4,7 @@
 
 ### Before decimation:
 - It might be necessary to split the mesh and clean elements separately.
+  - Cleaning and repairing → Remove Isolated Pieces (wrt Diameter), 10% used.
   - Selection → Select non Manifold Edges
   - Selection → Delete selected vertices
   - Selection → Select non Manifold Vertices
@@ -13,7 +14,7 @@
   - Remeshing, Simplification and Reconstruction → Close Holes (30mm used)
   - Cleaning and repairing → Remove Unreferenced Vertices
   - Quality Measure and Computation → Compute Geometric Measures
-  - Quality Measure and Computation →C ompute Topological Measures
+  - Quality Measure and Computation → Compute Topological Measures
 
 
 ### Decimation:

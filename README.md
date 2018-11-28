@@ -15,6 +15,7 @@
   - Cleaning and repairing → Remove Unreferenced Vertices
   - Quality Measure and Computation → Compute Geometric Measures
   - Quality Measure and Computation → Compute Topological Measures
+  - Mesh Layer → Split in Connected Components
 
 
 ### Decimation:

@@ -2,7 +2,33 @@ import vtk
 import numpy as np
 import os
 import glob
-import fnmatch
+
+# 01. LV myocardium (endo + epi)
+# 02. RV myocardium (endo + epi)
+# 03. LA myocardium (endo + epi)
+# 04. RA myocardium (endo + epi)
+#
+# 05. Aorta
+# 06. Pulmonary artery
+#
+# 07. Mitral valve
+# 08. Triscupid valve
+#
+# 09. Aortic valve
+# 10. Pulmonary valve
+
+# 11. Appendage
+
+# 12. Left inferior pulmonary vein
+# 13. Left superior pulmonary vein
+# 14. Right superior pulmonary vein
+# 15. Right inferior pulmonary vein
+#
+# 16. Superior vena cava
+# 17. Inferior vena cava
+
+list_of_elements = ['LV', 'RV', 'LA', 'RA', 'AO', 'PA', 'MV', 'TV', 'AV', 'PV', 'APP', 'LIPV', 'LSPV', 'RSPV', 'RIPV',
+                    'SVC', 'IVC']
 
 
 class Heart:
@@ -10,6 +36,7 @@ class Heart:
     def __init__(self, filename='h_case06.vtk', to_polydata=False):
 
         self.filename, self.input_type = filename.split('.')
+        print(self.filename)
         # Write vtk output to a file
         w = vtk.vtkFileOutputWindow()
         w.SetFileName(self.filename.split('/')[0] + '/errors.txt')
@@ -23,12 +50,13 @@ class Heart:
         else:
             self.mesh, self.scalar_range = self.read_vtk(to_polydata)
 
-        self.scalar_range = [1.0, 17.0]  # Added for particular case of CT meshes
+        # self.scalar_range = [1.0, 17.0]  # Added for particular case of CT meshes
         print('Corrected scalar range: {}'.format(self.scalar_range))
-        self.center_of_heart = self.set_center(self.mesh)
+        self.center_of_heart = self.get_center(self.mesh)
+        self.label = 0
 
     @staticmethod
-    def set_center(_mesh):
+    def get_center(_mesh):
         centerofmass = vtk.vtkCenterOfMass()
         centerofmass.SetInputData(_mesh.GetOutput())
         centerofmass.Update()
@@ -69,7 +97,7 @@ class Heart:
         # Display the mesh
         # noinspection PyArgumentList
         if display:
-            interactor = vtk.vtkRenderWindowInteractor(actually='', one_of_its_subclasses='')
+            interactor = vtk.vtkRenderWindowInteractor()
             interactor.SetRenderWindow(renderer_window)
             interactor.Initialize()
             interactor.Start()
@@ -77,29 +105,56 @@ class Heart:
             return renderer_window
 
     # -----3D rigid transformations---------------------------------------------------------------------------
-    def translate_to_center(self):
+    def translate_to_center(self, label=None):
         # vtkTransform.SetMatrix - enables for applying 4x4 transformation matrix to the meshes
+        # if label is provided, translates to the center of the element with that label
         translate = vtk.vtkTransform()
-        translate.Translate(-self.center_of_heart[0], -self.center_of_heart[1], -self.center_of_heart[2])
+        if label is not None:
+            central_element = self.threshold(label, label)
+            center_of_element = self.get_center(central_element)
+            translate.Translate(-center_of_element[0], -center_of_element[1], -center_of_element[2])
+        else:
+            translate.Translate(-self.center_of_heart[0], -self.center_of_heart[1], -self.center_of_heart[2])
         translate.Update()
         transformer = vtk.vtkTransformFilter()
         transformer.SetInputConnection(self.mesh.GetOutputPort())
         transformer.SetTransform(translate)
         transformer.Update()
         self.mesh = transformer
-        self.center_of_heart = self.set_center(self.mesh)
-        print('Center:', self.center_of_heart)
+        self.center_of_heart = self.get_center(self.mesh)
 
-    def rotate(self, alpha=0, beta=0, gamma=0):
+    def translate(self, rotation_matrix, translation_vector):
+        translate = vtk.vtkTransform()
+        translation_matrix = np.eye(4)
+        translation_matrix[:-1, :-1] = rotation_matrix
+        translation_matrix[:-1, -1] = translation_vector
+        print('Translation matrix:\n', translation_matrix)
+        translate.SetMatrix(translation_matrix.ravel())
+        transformer = vtk.vtkTransformFilter()
+        transformer.SetInputConnection(self.mesh.GetOutputPort())
+        transformer.SetTransform(translate)
+        transformer.Update()
+        self.mesh = transformer
+        self.center_of_heart = self.get_center(self.mesh)
+
+    def rotate(self, alpha=0, beta=0, gamma=0, rotation_matrix=None):
         rotate = vtk.vtkTransform()
-        rotate.Identity()
-        rotate.RotateZ(-45)
+        if rotation_matrix is not None:
+            translation_matrix = np.eye(4)
+            translation_matrix[:-1, :-1] = rotation_matrix
+            print('Translation matrix:\n', translation_matrix)
+            rotate.SetMatrix(translation_matrix.ravel())
+        else:
+            rotate.Identity()
+            rotate.RotateX(alpha)
+            rotate.RotateY(beta)
+            rotate.RotateZ(gamma)
         transformer = vtk.vtkTransformFilter()
         transformer.SetInputConnection(self.mesh.GetOutputPort())
         transformer.SetTransform(rotate)
         transformer.Update()
         self.mesh = transformer
-        self.center_of_heart = self.set_center(self.mesh)
+        self.center_of_heart = self.get_center(self.mesh)
 
     def scale(self, factor=(0.001, 0.001, 0.001)):
         scale = vtk.vtkTransform()
@@ -109,15 +164,23 @@ class Heart:
         transformer.SetTransform(scale)
         transformer.Update()
         self.mesh = transformer
-        self.center_of_heart = self.set_center(self.mesh)
+        self.center_of_heart = self.get_center(self.mesh)
+        print(self.center_of_heart)
 
     # -----Mesh manipulation----------------------------------------------------------------------------------
-    def downsample(self, tolerance=0.05):
+    def downsample(self, tolerance=0.005):
         downsample = vtk.vtkCleanPolyData()
         downsample.SetInputConnection(self.mesh.GetOutputPort())
         downsample.SetTolerance(tolerance)
         downsample.Update()
         self.mesh = downsample
+
+    def ug_geometry(self):
+        geometry = vtk.vtkUnstructuredGridGeometryFilter()
+        print(geometry.GetDuplicateGhostCellClipping())
+        geometry.SetInputConnection(self.mesh.GetOutputPort())
+        geometry.Update()
+        self.mesh = geometry
 
     def threshold(self, low=0, high=100):
         threshold = vtk.vtkThreshold()
@@ -183,12 +246,35 @@ class Heart:
         self.mesh = subdivision
         self.visualize_mesh(True)
 
+    def tetrahedralize(self, leave_tetra_only=True):
+        tetra = vtk.vtkDataSetTriangleFilter()
+        if leave_tetra_only:
+            tetra.TetrahedraOnlyOn()
+        tetra.SetInputConnection(self.mesh.GetOutputPort())
+        tetra.Update()
+        self.mesh = tetra
+
     def fill_holes(self, hole_size=10.0):
         filling_filter = vtk.vtkFillHolesFilter()
         filling_filter.SetInputConnection(self.mesh.GetOutputPort())
         filling_filter.SetHoleSize(hole_size)
         filling_filter.Update()
         self.mesh = filling_filter
+
+    def change_tag_label(self):
+        size = self.mesh.GetOutput().GetAttributes(1).GetArray(0).GetSize()
+        for id in range(size):
+            self.mesh.GetOutput().GetAttributes(1).GetArray(0).SetTuple(id, (float(self.label),))
+
+    def build_tag(self, label):
+        self.label = label
+        tag = vtk.vtkIdFilter()
+        tag.CellIdsOn()
+        tag.PointIdsOff()
+        tag.SetInputConnection(self.mesh.GetOutputPort())
+        tag.SetIdsArrayName('elemTag')
+        tag.Update()
+        self.mesh = tag
 
     def apply_modes(self, modes_with_scales):
         for mode, scale in modes_with_scales.items():
@@ -262,7 +348,7 @@ class Heart:
         reader = vtk.vtkDataReader()
         reader.SetFileName(self.filename + '.' + self.input_type)
         reader.Update()
-
+        print(self.filename)
         if reader.IsFileUnstructuredGrid():
             print('Reading Unstructured Grid...')
             reader = vtk.vtkUnstructuredGridReader()
@@ -329,16 +415,16 @@ class Heart:
         stl_writer.Write()
         print('{} written succesfully'.format(output_filename))
 
-    def write_obj(self):
+    def write_obj(self, postscript=''):
         output_filename = self.filename
         render_window = self.visualize_mesh(False)
 
         print('Saving PolyData in the OBJ file...')
         obj_writer = vtk.vtkOBJExporter()
         obj_writer.SetRenderWindow(render_window)
-        obj_writer.SetFilePrefix(output_filename)
+        obj_writer.SetFilePrefix(output_filename + postscript)
         obj_writer.Write()
-        print('{} written succesfully'.format(output_filename + '.obj'))
+        print('{} written succesfully'.format(output_filename + postscript + '.obj'))
 
     def write_vtk(self, postscript='_new', type_='PolyData'):
         output_filename = self.filename + postscript + '.vtk'
@@ -371,51 +457,31 @@ class Heart:
 
 
 # TODO: Make all of the functions and parameters below into a class!!!
-# -----MightBeUseful------------------------------------------------------------------------------------------
-def get_valve_surfaces(_model):
-
-    valve = _model.threshold(14, 14)  # mitral valve
-    valve_ext_left = _model.unstructured_grid_to_poly_data(_model.get_external_surface(valve))
-    valve_int_left = _model.unstructured_grid_to_poly_data(_model.get_external_surface(valve, False))
-    valve_int_left = change_elem_tag(valve_int_left, 25)
-    valve = _model.threshold(15, 15)  # triscupid valve
-    valve_ext_right = _model.unstructured_grid_to_poly_data(_model.get_external_surface(valve))
-    valve_int_right = _model.unstructured_grid_to_poly_data(_model.get_external_surface(valve, False))
-    valve_int_right = change_elem_tag(valve_int_right, 26)
-    lower_part = _model.unstructured_grid_to_poly_data(_model.threshold(1, 13))
-    upper_part = _model.unstructured_grid_to_poly_data(_model.threshold(16, 24))
-
-    app = vtk.vtkAppendPolyData()
-    app.AddInputConnection(lower_part.GetOutputPort())
-    app.AddInputConnection(upper_part.GetOutputPort())
-    app.AddInputConnection(valve_ext_left.GetOutputPort())
-    app.AddInputConnection(valve_int_left.GetOutputPort())
-    app.AddInputConnection(valve_ext_right.GetOutputPort())
-    app.AddInputConnection(valve_int_right.GetOutputPort())
-    app.Update()
-    _model.mesh = app
-    return _model
-
-
 # -----ApplyToCohort------------------------------------------------------------------------------------------
-def apply_single_transformation_to_all(input_base, version, start=1, end=20, ext='_new', function_=None, args='()'):
+def apply_single_transformation_to_all(path, input_base, version, start=1, end=20, ext='_new', ext_type='PolyData',
+                                       function_=None, args='()'):
     if function_ is not None:
         for case_no in range(start, end+1):
-            case = input_base + '/' + input_base + str(case_no).zfill(2) + version + '.vtk'
+            case = path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk'
             print(case)
             single_model = Heart(case)
-            exec('model.' + function_ + args)
-            single_model.write_vtk(ext)
+            exec('single_model.' + function_ + args)
+            single_model.write_vtk(ext, type_=ext_type)
 
 
-def apply_function_to_all(input_base, version, start=1, end=20, ext='_new', function_=None):
+def apply_function_to_all(path, input_base, version, start=1, end=20, ext='_new', ext_type='PolyData',
+                          function_=None, args=''):
     if function_ is not None:
         for case_no in range(start, end+1):
-            case = input_base + '/' + input_base + str(case_no).zfill(2) + version + '.vtk'
+            case = path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk'
             print(case)
             single_model = Heart(case)
-            single_model = function_(single_model, case)
-            single_model.write_vtk(ext)
+            if function_ == 'align_with_rotation_only' and case_no == 1:
+                target_element = single_model.threshold(8, 8)
+                direction_vector = single_model.get_center(target_element)
+                args = args+'direction_vector=direction_vector'
+            exec('single_model = ' + function_ + '(single_model,' + args + ')')
+            single_model.write_vtk(ext, type_=ext_type)
 # ------------------------------------------------------------------------------------------------------------
 
 
@@ -498,15 +564,9 @@ def decimate_chambers(full_model, case=None):
 # ------------------------------------------------------------------------------------------------------------
 
 
-def change_elem_tag(_mesh, label):
-    size = _mesh.GetOutput().GetAttributes(1).GetArray(0).GetSize()
-    for i in range(size):
-        _mesh.GetOutput().GetAttributes(1).GetArray(0).SetTuple(i, (float(label),))
-    return _mesh
-
-
-def split_chambers(_model, return_as_surface=True):
-    _model.translate_to_center()
+# -----Splitting----------------------------------------------------------------------------------------------
+def split_chambers(_model, return_as_surface=False, return_elements=True):
+    # _model.translate_to_center()
 
     surfaces = []
     for i in range(1, int(_model.scalar_range[1]) + 1):
@@ -515,12 +575,18 @@ def split_chambers(_model, return_as_surface=True):
         surfaces.append(x)
 
     full_model_appended = vtk.vtkAppendFilter()
-    for surf in surfaces:
+    for surf, elem in zip(surfaces, list_of_elements):
+        if return_elements:
+            _model.mesh = surf
+            _model.extract_surface()
+            _model.write_vtk(postscript='_'+elem)
+
         full_model_appended.AddInputConnection(surf.GetOutputPort())
-        # _
+
     full_model_appended.Update()
     _model.mesh = full_model_appended
     if return_as_surface:
+        _model.translate_to_center()
         _model.extract_surface()
         _model.write_vtk(postscript='surf')
         _model.write_obj()
@@ -587,116 +653,151 @@ def change_downloaded_files_names(path='h_case_', key='surfmesh', ext='vtk'):
     print(files)
 
 
-def h_case_pipeline(start_=1, end_=20):
+def change_elem_tag(_mesh, label):
+    size = _mesh.GetOutput().GetAttributes(1).GetArray(0).GetSize()
+    for i in range(size):
+        _mesh.GetOutput().GetAttributes(1).GetArray(0).SetTuple(i, (float(label),))
+    return _mesh
+
+
+def assign_tags(_mesh, label_and_range_tuple=({},)):
+    _mesh.GetOutput().GetAttributes(1).GetArray(0).SetName('elemTag')
+    _mesh.GetOutput().GetAttributes(0).RemoveArray('elemTag')  # remove point attribute
+    for label_and_range in label_and_range_tuple:
+        label = label_and_range['label']
+        range_of_points = label_and_range['range']
+        print('Assiging label {} to {} points'.format(label, range_of_points[1]))
+        for id in range(*range_of_points):
+            _mesh.GetOutput().GetAttributes(1).GetArray('elemTag').SetTuple(id, (float(label),))
+    return _mesh
+
+
+def merge_elements(elem1, elem2):
+    """
+    Appends elements and returns the single connected mesh. The points in the same position in 3D are merged into one.
+    :param elem1: Single element. The order of the elements pays no role.
+    :param elem2: Single element.
+    :return: Merged element as filter.
+    """
+    merger = vtk.vtkAppendFilter()
+    merger.MergePointsOn()
+    merger.AddInputConnection(elem1.GetOutputPort())
+    merger.AddInputConnection(elem2.GetOutputPort())
+    merger.Update()
+    return merger
+
+
+def calculate_rotation(reference_vector, target_vector):
+    """
+    Calculates the rotation matrix which rotates the object to align the target vector direction to reference
+    vector direction. Assumes that both vectors are anchored at the beginning of the coordinate system
+    :param reference_vector: Vector with referential direction. The rotation matrix will align the target_vector's
+    direction to this one.
+    :param target_vector:  Vector pointing to a  structure corresponding to the referential vector.
+    :return: 3x3 rotation matrix (rot), where [rot @ target_vector = reference_vector] in terms of direction.
+    """
+
+    unit_reference_vector = reference_vector / np.linalg.norm(reference_vector)
+    unit_target_vector = target_vector / np.linalg.norm(target_vector)
+    c = unit_target_vector @ unit_reference_vector
+    if c == 1:
+        return np.eye(3)
+    elif c == -1:
+        return -np.eye(3)
+    else:
+        v = np.cross(unit_target_vector, unit_reference_vector)
+        vx = np.array(([0,     -v[2],   v[1]],
+                       [v[2],   0,     -v[0]],
+                       [-v[1],  v[0],   0]))
+        vx2 = vx @ vx
+        return np.eye(3) + vx + vx2 / (1 + c)
+
+
+def align_with_rotation_only(target_model, direction_vector, label=None):
+    """
+    Aligns the target model to the reference model using positions of 2 relevant markers.
+    :param target_model: Model to be aligned to the reference model.
+    :param direction_vector: Same for the whole population of models. Points to the reference for target model.
+    :param label: Label of the element to center of which the orientation will be aligned.
+    :return: The model with orientation aligned to the reference model.
+    """
+    if label is None:
+        exit('Label of the refernce point has not been given')
+    else:
+        target_element = target_model.threshold(label, label)
+        reference_element_center = target_model.get_center(target_element)
+        rotation_matrix = calculate_rotation(direction_vector, reference_element_center)
+        target_model.translate(rotation_matrix=rotation_matrix, translation_vector=-direction_vector/2)
+        return target_model
+
+
+def h_case_pipeline(start_=1, end_=19, path=None):
     # TODO: Problem with this solution is that the files are read and written at every step. Should become
     # TODO: a pipeline, that produces only one file in the end, using a list of functions (with arguments)
 
     # extract surfaces
-    # apply_single_transformation_to_all('case_', version='', start=start_, end=end_, ext='_pd',
+    # apply_single_transformation_to_all('case_', version='', start=start_, end=end_, ext='_p',
     #                                    function_='extract_surface')
-    # # center the meshes
-    apply_single_transformation_to_all('case_', version='_pd', start=start_, end=end_, ext='_centered',
-                                       function_='translate_to_center')
+    # center the meshes
+    apply_single_transformation_to_all(path, input_base='case_', version='', start=start_, end=end_, ext='_pc', ext_type='UG',
+                                       function_='translate_to_center', args='(label=7)')
     # scale the meshes
-    apply_single_transformation_to_all('case_', version='_pd_centered', start=start_, end=end_, ext='',
-                                       function_='scale', args='()')
-    # extract valves
-    # apply_function_to_all('h_case', '',  start=start_, end=end_, ext='_sepvalves', function_=get_valve_surfaces)
+    # apply_single_transformation_to_all(path, 'case_', version='_pc', start=start_, end=end_, ext='s', ext_type='UG',
+    #                                    function_='scale', args='()')
+    # align the meshes
+    apply_function_to_all(path, 'case_', version='_pc', start=start_, end=end_, ext='r', ext_type='UG',
+                          function_='align_with_rotation_only', args='label=8,')
     # split chambers
-    apply_function_to_all('h_case_', '_surface_pd_centered',  start=start_, end=end_,ext='_surface_full', function_=split_chambers)
-    # decimate_heart
-    apply_function_to_all('case_', '_pd_centered', start=start_, end=end_, ext='_delete', function_=decimate_heart)
-    # write as mha
-    # apply_single_transformation_to_all('h_case', '_surface_lv_decimated', start=start_, end=end_, function_='write_mha()')
+    apply_function_to_all(path, 'case_', '_pcr',  start=start_, end=end_, ext='_surface_full',
+                          function_='split_chambers', args='case, return_elements=True')
+    # # decimate_heart
+    # apply_function_to_all('case_', '_pd_centered', start=start_, end=end_, ext='_delete', function_='decimate_heart',
+    # args='case')
     pass
 
 
 if __name__ == '__main__':
-    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', )
-    #    h_case_pipeline(start_=18, end_=18)
-    relevant_files = glob.glob(os.path.join(absolute_data_path, 'case_', 'tetra_meshes', 'h_case??surf_doubled.vtk'))
+
+    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'case_')
+    deformetrica_data_path = os.path.join('/home', 'mat', 'Deformetrica')
+
+    relevant_files = glob.glob(os.path.join(absolute_data_path,  'case_*.vtk'))
+    def_relevant_files = glob.glob(os.path.join(deformetrica_data_path,
+                                                'deterministic_atlas_ct',
+                                                'output_tmp10_def10_surf',
+                                                'DeterministicAtlas__flow__heart__subject_sub??__tp_?.vtk'))
+
     relevant_files.sort()
+    def_relevant_files.sort()
     print(relevant_files)
-    for i, shape in enumerate(relevant_files):
 
-        model = Heart(shape)
-        # model.write_vtk(postscript='surf_doubled')
-        model.write_stl()
-        model.write_obj()
+    h_case_pipeline(path=absolute_data_path)
 
+    # a = calculate_rotation(np.array([1, 0, 0]), np.array([0, 0, 1]))
+    # print(a)
+# ----Building models for electrophysiological simulations
+#     models = []
+#     labels = {'LV': 1, 'RV': 2, 'MV': 7, 'TV': 8, 'AV': 9, 'PV': 10}
+#     for shape in relevant_files:
+#         print(shape[-12:-10])
+#         model = Heart(shape)
+#         model.build_tag(label=labels[shape[-12:-10]])
+#         model.change_tag_label()
+#         models.append(model)
+#
+#     final_model = models.pop(0)
+#     for model_to_merge in models:
+#         print(model_to_merge)
+#         final_model.mesh = merge_elements(final_model.mesh, model_to_merge.mesh)
+#     # final_model.tetrahedralize()
+#     # final_model.ug_geometry()
+#     final_model.write_vtk(postscript='merged', type_='UG')
+# -----------------------------------------------------------------------
 
-    # model = Heart('/home/mat/Deformetrica/deterministic_atlas_ct/output_tmp_10_def_10/DeterministicAtlas__flow__heart__subject_sub01__tp_10.vtk')
-    #     model.write_stl()
+# labels_and_ranges = ({'label': 1, 'range': (0, 472726)}, {'label': 2, 'range': (472726, 688801)})
+# model.mesh = assign_tags(model.mesh, labels_and_ranges)
+# model.write_vtk(postscript='tagged', type_='UG')
 
-    # model = Heart('h_case_/h_case_01_surface_pd_centered.vtk')  # Relative, path to the file
-
-# # --Attempt to translate unstructured grid into mha image format----------
-#     inval = 255
-#     outval = 0
-#     spacing = np.ones(3) * 0.05
-#     dim = np.zeros(3, dtype='i8')
-#     origin = np.zeros(3)
-#     bounds = np.zeros(6)
-#     pd = model.mesh.GetOutput().GetBounds(bounds)
-#
-#     for i in range(3):
-#         dim[i] = np.ceil((bounds[i * 2 + 1] - bounds[i * 2]) / spacing[i])
-#     for i in range(3):
-#         origin[i] = bounds[i*2] + spacing[i] / 2
-#
-#     print(dim)
-#     print(origin)
-#
-#     whiteImage = vtk.vtkImageData()
-#     whiteImage.SetSpacing(spacing)
-#     whiteImage.SetDimensions(dim)
-#     whiteImage.SetExtent(0, dim[0] - 1, 0, dim[1] - 1, 0, dim[2] - 1)
-#     whiteImage.SetOrigin(origin)
-#     whiteImage.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 1)
-#     pti = vtk.vtkPolyDataToImageStencil()
-#     pti.SetInputData(model.mesh.GetOutput())
-#     pti.Update()
-#     stencil = vtk.vtkImageStencil()
-#     stencil.SetInputData(whiteImage)
-#     stencil.SetStencilData(pti.GetOutput())
-#     stencil.ReverseStencilOff()
-#     stencil.SetBackgroundValue(1)
-#     stencil.Update()
-#
-#     writer = vtk.vtkMetaImageWriter()
-#     writer.SetFileName("SphereVolume.mhd");
-#     writer.SetInputData(stencil.GetOutput());
-#     writer.Write()
-#  -----version 2---------------
-
-#     count = whiteImage.GetNumberOfPoints()
-#     print(count)
-#     for i in range(count):
-#         print('Points added: {}%'.format(np.round(i/count, 2))) if i % 100000 == 0 else None
-#         whiteImage.GetPointData().GetScalars().SetTuple(i, (float(inval),))
-#
-#     print('PolyData to ImageStencil...')
-#     pol2stenc = vtk.vtkPolyDataToImageStencil()
-#     pol2stenc.SetInputData(pd)
-#     pol2stenc.SetOutputOrigin(origin)
-#     pol2stenc.SetOutputSpacing(spacing)
-#     pol2stenc.SetOutputWholeExtent(whiteImage.GetExtent())
-#     pol2stenc.Update()
-#
-#     print('Image Stencil...')
-#     imgstenc = vtk.vtkImageStencil()
-#     imgstenc.SetInputData(whiteImage)
-#     imgstenc.SetStencilConnection(pol2stenc.GetOutputPort())
-#     imgstenc.ReverseStencilOff()
-#     imgstenc.SetBackgroundValue(outval)
-#     imgstenc.Update()
-#
-#     print('Writing the file...')
-#     writer = vtk.vtkMetaImageWriter()
-#     writer.SetFileName("SphereVolume.mha");
-#     writer.SetInputData(imgstenc.GetOutput());
-#     writer.Write()
-# ------------------------------------------------------------------------------------------------------------
 # model = Heart('h_case/h_case01_surface_la.vtk')  # Relative, path to the file
 # iterations = 200
 # model.smooth_laplacian(iterations)

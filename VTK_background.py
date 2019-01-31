@@ -27,11 +27,11 @@ import glob
 # 16. Superior vena cava
 # 17. Inferior vena cava
 
-list_of_elements = ['LV', 'RV', 'LA', 'RA', 'AO', 'PA', 'MV', 'TV', 'AV', 'PV', 'APP', 'LIPV', 'LSPV', 'RSPV', 'RIPV',
-                    'SVC', 'IVC']
-
 
 class Heart:
+
+    list_of_elements = ['LV', 'RV', 'LA', 'RA', 'AO', 'PA', 'MV', 'TV', 'AV', 'PV', 'APP', 'LIPV', 'LSPV', 'RSPV',
+                        'RIPV', 'SVC', 'IVC']
 
     def __init__(self, filename='h_case06.vtk', to_polydata=False):
 

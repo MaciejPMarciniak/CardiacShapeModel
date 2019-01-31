@@ -18,7 +18,6 @@ import glob
 # 10. Pulmonary valve
 
 # 11. Appendage
-
 # 12. Left inferior pulmonary vein
 # 13. Left superior pulmonary vein
 # 14. Right superior pulmonary vein
@@ -588,7 +587,7 @@ def split_chambers(_model, return_as_surface=False, return_elements=True):
         surfaces.append(x)
 
     full_model_appended = vtk.vtkAppendFilter()
-    for surf, elem in zip(surfaces, list_of_elements):
+    for surf, elem in zip(surfaces, _model.list_of_elements):
         if return_elements:
             _model.mesh = surf
             _model.extract_surface()

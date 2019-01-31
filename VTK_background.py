@@ -51,8 +51,9 @@ class Heart:
             self.mesh, self.scalar_range = self.read_vtk(to_polydata)
 
         # self.scalar_range = [1.0, 17.0]  # Added for particular case of CT meshes
-        print('Corrected scalar range: {}'.format(self.scalar_range))
+        # print('Corrected scalar range: {}'.format(self.scalar_range))
         self.center_of_heart = self.get_center(self.mesh)
+        print('Model centered at: {}'.format(self.center_of_heart))
         self.label = 0
 
     @staticmethod
@@ -61,13 +62,6 @@ class Heart:
         centerofmass.SetInputData(_mesh.GetOutput())
         centerofmass.Update()
         return np.array(centerofmass.GetCenter())
-
-    @staticmethod
-    def unstructured_grid_to_poly_data(_algorithm):
-        geometry_filter = vtk.vtkExtractGeometry()
-        geometry_filter.SetInputConnection(_algorithm.GetOutputPort())
-        geometry_filter.Update()
-        return geometry_filter
 
     def visualize_mesh(self, display=True):
         # Create the mapper that corresponds the objects of the vtk file into graphics elements
@@ -109,6 +103,7 @@ class Heart:
         # vtkTransform.SetMatrix - enables for applying 4x4 transformation matrix to the meshes
         # if label is provided, translates to the center of the element with that label
         translate = vtk.vtkTransform()
+        print('translating_to_center')
         if label is not None:
             central_element = self.threshold(label, label)
             center_of_element = self.get_center(central_element)
@@ -122,6 +117,7 @@ class Heart:
         transformer.Update()
         self.mesh = transformer
         self.center_of_heart = self.get_center(self.mesh)
+        print(self.center_of_heart)
 
     def translate(self, rotation_matrix, translation_vector):
         translate = vtk.vtkTransform()
@@ -168,12 +164,23 @@ class Heart:
         print(self.center_of_heart)
 
     # -----Mesh manipulation----------------------------------------------------------------------------------
-    def downsample(self, tolerance=0.005):
-        downsample = vtk.vtkCleanPolyData()
-        downsample.SetInputConnection(self.mesh.GetOutputPort())
-        downsample.SetTolerance(tolerance)
-        downsample.Update()
-        self.mesh = downsample
+    def clean_polydata(self, tolerance=0.005, remove_lines=False):
+        cleaner = vtk.vtkCleanPolyData()
+        cleaner.SetInputConnection(self.mesh.GetOutputPort())
+        cleaner.SetTolerance(tolerance)
+        cleaner.ConvertLinesToPointsOn()
+        cleaner.ConvertPolysToLinesOn()
+        cleaner.ConvertStripsToPolysOn()
+        cleaner.Update()
+        self.mesh = cleaner
+        if remove_lines:
+            self.mesh.GetOutput().SetLines(vtk.vtkCellArray())
+
+    def unstructured_grid_to_poly_data(self):
+        geometry_filter = vtk.vtkExtractGeometry()
+        geometry_filter.SetInputConnection(self.mesh.GetOutputPort())
+        geometry_filter.Update()
+        return geometry_filter
 
     def ug_geometry(self):
         geometry = vtk.vtkUnstructuredGridGeometryFilter()
@@ -181,6 +188,13 @@ class Heart:
         geometry.SetInputConnection(self.mesh.GetOutputPort())
         geometry.Update()
         self.mesh = geometry
+
+    def extract_surface(self):
+        # Get surface of the mesh
+        surface_filter = vtk.vtkDataSetSurfaceFilter()
+        surface_filter.SetInputData(self.mesh.GetOutput())
+        surface_filter.Update()
+        self.mesh = surface_filter
 
     def threshold(self, low=0, high=100):
         threshold = vtk.vtkThreshold()
@@ -286,13 +300,6 @@ class Heart:
             warp_vector.Update()
             self.mesh = warp_vector
 
-    def extract_surface(self):
-        # Get surface of the mesh
-        surface_filter = vtk.vtkDataSetSurfaceFilter()
-        surface_filter.SetInputData(self.mesh.GetOutput())
-        surface_filter.Update()
-        self.mesh = surface_filter
-
     @staticmethod
     def get_external_surface(_mesh, external=True):
         _center = np.zeros(3)
@@ -346,9 +353,9 @@ class Heart:
     def read_vtk(self, to_polydata=False):
         # Read the source file.
         reader = vtk.vtkDataReader()
-        reader.SetFileName(self.filename + '.' + self.input_type)
+        reader.SetFileName('.' .join([self.filename, self.input_type]))
         reader.Update()
-        print(self.filename)
+        print(self.filename, self.input_type)
         if reader.IsFileUnstructuredGrid():
             print('Reading Unstructured Grid...')
             reader = vtk.vtkUnstructuredGridReader()
@@ -458,25 +465,31 @@ class Heart:
 
 # TODO: Make all of the functions and parameters below into a class!!!
 # -----ApplyToCohort------------------------------------------------------------------------------------------
-def apply_single_transformation_to_all(path, input_base, version, start=1, end=20, ext='_new', ext_type='PolyData',
+def apply_single_transformation_to_all(path, input_base, version, start=0, end=0, ext='_new', ext_type='PolyData',
                                        function_=None, args='()'):
     if function_ is not None:
-        for case_no in range(start, end+1):
-            case = path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk'
-            print(case)
+        if start == end:
+            cases = [os.path.join(path, f) for f in os.listdir(path) if f[-4:] == ".vtk"]
+        else:
+            cases = [path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk' for case_no in
+                     range(start, end + 1)]
+        for case in cases:
             single_model = Heart(case)
             exec('single_model.' + function_ + args)
-            single_model.write_vtk(ext, type_=ext_type)
+            single_model.write_vtk(postscript=ext, type_=ext_type)
 
 
 def apply_function_to_all(path, input_base, version, start=1, end=20, ext='_new', ext_type='PolyData',
                           function_=None, args=''):
     if function_ is not None:
-        for case_no in range(start, end+1):
-            case = path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk'
-            print(case)
+        if start == end:
+            cases = [os.path.join(path, f) for f in os.listdir(path) if f[-4:] == ".vtk"]
+        else:
+            cases = [path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk' for case_no in
+                     range(start, end + 1)]
+        for c, case in enumerate(cases):
             single_model = Heart(case)
-            if function_ == 'align_with_rotation_only' and case_no == 1:
+            if function_ == 'align_with_rotation_only' and c == 1:
                 target_element = single_model.threshold(8, 8)
                 direction_vector = single_model.get_center(target_element)
                 args = args+'direction_vector=direction_vector'
@@ -739,18 +752,22 @@ def h_case_pipeline(start_=1, end_=19, path=None):
     # apply_single_transformation_to_all('case_', version='', start=start_, end=end_, ext='_p',
     #                                    function_='extract_surface')
     # center the meshes
-    apply_single_transformation_to_all(path, input_base='case_', version='', start=start_, end=end_, ext='_pc', ext_type='UG',
-                                       function_='translate_to_center', args='(label=7)')
+    apply_single_transformation_to_all(path, input_base='Case', version='_mesh', start=start_, end=end_, ext='',
+                                       ext_type='PolyData', function_='translate_to_center')
+    # clean (if possible) poorly built meshes
+    apply_single_transformation_to_all(path, input_base='Case', version='mesh', start=start_, end=end_, ext='',
+                                       ext_type='PolyData', function_='clean_polydata', args='(1e-6, True)')
+
     # scale the meshes
     # apply_single_transformation_to_all(path, 'case_', version='_pc', start=start_, end=end_, ext='s', ext_type='UG',
     #                                    function_='scale', args='()')
     # align the meshes
-    apply_function_to_all(path, 'case_', version='_pc', start=start_, end=end_, ext='r', ext_type='UG',
-                          function_='align_with_rotation_only', args='label=8,')
-    # split chambers
-    apply_function_to_all(path, 'case_', '_pcr',  start=start_, end=end_, ext='_surface_full',
-                          function_='split_chambers', args='case, return_elements=True')
-    # # decimate_heart
+    # apply_function_to_all(path, 'case_', version='_pc', start=start_, end=end_, ext='r', ext_type='UG',
+    #                       function_='align_with_rotation_only', args='label=8,')
+    # # split chambers
+    # apply_function_to_all(path, 'case_', '_pcr',  start=start_, end=end_, ext='_surface_full',
+    #                       function_='split_chambers', args='case, return_elements=True')
+    # # # decimate_heart
     # apply_function_to_all('case_', '_pd_centered', start=start_, end=end_, ext='_delete', function_='decimate_heart',
     # args='case')
     pass
@@ -758,10 +775,10 @@ def h_case_pipeline(start_=1, end_=19, path=None):
 
 if __name__ == '__main__':
 
-    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'case_')
+    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'gen_r')
     deformetrica_data_path = os.path.join('/home', 'mat', 'Deformetrica')
 
-    relevant_files = glob.glob(os.path.join(absolute_data_path,  'case_*.vtk'))
+    relevant_files = glob.glob(os.path.join(absolute_data_path,  'Case*.vtk'))
     def_relevant_files = glob.glob(os.path.join(deformetrica_data_path,
                                                 'deterministic_atlas_ct',
                                                 'output_tmp10_def10_surf',
@@ -771,8 +788,13 @@ if __name__ == '__main__':
     def_relevant_files.sort()
     print(relevant_files)
 
-    h_case_pipeline(path=absolute_data_path)
-
+    h_case_pipeline(path=absolute_data_path, start_=0, end_=0)
+    # for lv in relevant_files:
+    #     model = Heart(lv)
+    #     model.write_vtk()
+    # print(model.mesh.GetOutput().SetLines())
+    # print(model.mesh.GetOutput().GetPolyLines())
+    # print(model.mesh.GetOutput().SetLines(vtk.vtkCellArray()))
     # a = calculate_rotation(np.array([1, 0, 0]), np.array([0, 0, 1]))
     # print(a)
 # ----Building models for electrophysiological simulations

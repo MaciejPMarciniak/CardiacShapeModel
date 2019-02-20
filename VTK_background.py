@@ -1,4 +1,5 @@
 import vtk
+from vtk.util.numpy_support import vtk_to_numpy
 import numpy as np
 import os
 import glob
@@ -488,10 +489,15 @@ def apply_function_to_all(path, input_base, version, start=1, end=20, ext='_new'
                      range(start, end + 1)]
         for c, case in enumerate(cases):
             single_model = Heart(case)
-            if function_ == 'align_with_rotation_only' and c == 1:
-                target_element = single_model.threshold(8, 8)
-                direction_vector = single_model.get_center(target_element)
-                args = args+'direction_vector=direction_vector'
+            if function_ == 'align_with_rotation_only' and c == 0:
+                anchoring_element = single_model.get_center(single_model.threshold(7, 7))
+                direction_vector = single_model.get_center(single_model.threshold(8, 8)) - anchoring_element
+                target_plane_norm = single_model.get_center(single_model.threshold(9, 9))  # 9 ~ Aortic valve
+                plane_norm = calculate_plane_normal(anchoring_element, direction_vector/2, target_plane_norm)
+                args = args+'direction_vector=direction_vector, plane_norm=plane_norm'
+            if function_ == 'registration' and c == 0:
+                reference_model = single_model
+                args = args+'reference_model = reference_model'
             exec('single_model = ' + function_ + '(single_model,' + args + ')')
             single_model.write_vtk(ext, type_=ext_type)
 # ------------------------------------------------------------------------------------------------------------
@@ -725,21 +731,82 @@ def calculate_rotation(reference_vector, target_vector):
         return np.eye(3) + vx + vx2 / (1 + c)
 
 
-def align_with_rotation_only(target_model, direction_vector, label=None):
+def calculate_plane_normal(a, b, c):
     """
-    Aligns the target model to the reference model using positions of 2 relevant markers.
-    :param target_model: Model to be aligned to the reference model.
-    :param direction_vector: Same for the whole population of models. Points to the reference for target model.
-    :param label: Label of the element to center of which the orientation will be aligned.
-    :return: The model with orientation aligned to the reference model.
+    :param a: 3D point
+    :param b: 3D point
+    :param c: 3D point
+    :return: Vector normal to a plane which crosses the abc points.
     """
-    if label is None:
-        exit('Label of the refernce point has not been given')
+    return np.cross(b-a, b-c)
+
+
+def get_centers(_model, _labels):
+
+    centers = []
+    for lab in _labels:
+        centers.append(_model.get_center(_model.threshold(lab, lab)))
+    return centers
+
+
+def get_translation_vector(target_markers, reference_markers):
+
+    target_center = np.mean([target_markers[0], target_markers[1]], axis=0)
+    reference_center = np.mean([reference_markers[0], reference_markers[1]], axis=0)
+    return reference_center - target_center
+
+
+def get_plane_alignment_rotation_matrix(target_markers, reference_markers):
+
+    target_center = np.mean([target_markers[0], target_markers[1]], axis=0)
+    reference_center = np.mean([reference_markers[0], reference_markers[1]], axis=0)
+    assert np.all(target_center - reference_center < 0.001), 'The models are not position-aligned'
+
+    target_plane_normal = calculate_plane_normal(target_markers[2], target_center, target_markers[1])
+    reference_plane_normal = calculate_plane_normal(reference_markers[2], reference_center, reference_markers[1])
+    return calculate_rotation(reference_plane_normal, target_plane_normal)
+
+
+def get_lowest_septal_point(_model):
+
+    lv = _model.threshold(1, 1)
+    rv = _model.threshold(2, 2)
+    lv_points = set(tuple(map(tuple, vtk_to_numpy(lv.GetOutput().GetPoints().GetData()))))
+    rv_points = set(tuple(map(tuple, vtk_to_numpy(rv.GetOutput().GetPoints().GetData()))))
+    common_points = lv_points.intersection(rv_points)
+
+    valve_centers = get_centers(_model, (7, 8))
+    center = np.mean([valve_centers[0], valve_centers[1]], axis=0)
+    norms = np.array([[x, np.linalg.norm((center - x))] for x in common_points])
+    lowest_septal_point = np.array(norms[norms[:, 1] == np.max(norms[:, 1])][0, 0])
+    return lowest_septal_point
+
+
+def get_vector_alignment_rotation_matrix(target_markers, reference_markers):
+
+    target_center = np.mean([target_markers[0], target_markers[1]], axis=0)
+    reference_center = np.mean([reference_markers[0], reference_markers[1]], axis=0)
+    return calculate_rotation(reference_markers[2] - reference_center, target_markers[2] - target_center)
+
+
+def registration(target_model, reference_model, labels=(7, 8)):
+
+    if len(labels) != 2:
+        exit('Check the provided labels, only 2 allowed')
     else:
-        target_element = target_model.threshold(label, label)
-        reference_element_center = target_model.get_center(target_element)
-        rotation_matrix = calculate_rotation(direction_vector, reference_element_center)
-        target_model.translate(rotation_matrix=rotation_matrix, translation_vector=-direction_vector/2)
+        tar_markers = get_centers(target_model, labels)
+        ref_markers = get_centers(reference_model, labels)
+        tranlsation = get_translation_vector(tar_markers, ref_markers)  # requires 2 markers, finds middle between them
+        target_model.translate(rotation_matrix=np.eye(3), translation_vector=tranlsation)
+        tar_lsp = get_lowest_septal_point(target_model)
+        ref_lsp = get_lowest_septal_point(reference_model)
+        new_tar_markers = get_centers(target_model, labels)
+        new_tar_markers.append(tar_lsp)
+        ref_markers.append(ref_lsp)
+        rotation1 = get_plane_alignment_rotation_matrix(new_tar_markers, ref_markers)
+        rotation2 = get_vector_alignment_rotation_matrix(new_tar_markers, ref_markers)
+        rotation = rotation2 @ rotation1
+        target_model.translate(rotation_matrix=rotation, translation_vector=np.zeros(3))
         return target_model
 
 
@@ -751,18 +818,18 @@ def h_case_pipeline(start_=1, end_=19, path=None):
     # apply_single_transformation_to_all('case_', version='', start=start_, end=end_, ext='_p',
     #                                    function_='extract_surface')
     # center the meshes
-    apply_single_transformation_to_all(path, input_base='Case', version='_mesh', start=start_, end=end_, ext='',
-                                       ext_type='PolyData', function_='translate_to_center')
-    # clean (if possible) poorly built meshes
-    apply_single_transformation_to_all(path, input_base='Case', version='mesh', start=start_, end=end_, ext='',
-                                       ext_type='PolyData', function_='clean_polydata', args='(1e-6, True)')
+    # apply_single_transformation_to_all(path, input_base='Case', version='_mesh', start=start_, end=end_, ext='',
+    #                                    ext_type='PolyData', function_='translate_to_center')
+    # # clean (if possible) poorly built meshes
+    # apply_single_transformation_to_all(path, input_base='Case', version='mesh', start=start_, end=end_, ext='',
+    #                                    ext_type='PolyData', function_='clean_polydata', args='(1e-6, True)')
 
     # scale the meshes
     # apply_single_transformation_to_all(path, 'case_', version='_pc', start=start_, end=end_, ext='s', ext_type='UG',
     #                                    function_='scale', args='()')
     # align the meshes
-    # apply_function_to_all(path, 'case_', version='_pc', start=start_, end=end_, ext='r', ext_type='UG',
-    #                       function_='align_with_rotation_only', args='label=8,')
+    apply_function_to_all(path, 'case_', version='_pc', start=start_, end=end_, ext='r2', ext_type='UG',
+                          function_='registration', args='labels=(7, 8), ')
     # # split chambers
     # apply_function_to_all(path, 'case_', '_pcr',  start=start_, end=end_, ext='_surface_full',
     #                       function_='split_chambers', args='case, return_elements=True')
@@ -774,10 +841,10 @@ def h_case_pipeline(start_=1, end_=19, path=None):
 
 if __name__ == '__main__':
 
-    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'gen_r')
+    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'case_')
     deformetrica_data_path = os.path.join('/home', 'mat', 'Deformetrica')
 
-    relevant_files = glob.glob(os.path.join(absolute_data_path,  'Case*.vtk'))
+    relevant_files = glob.glob(os.path.join(absolute_data_path,  'case*pc.vtk'))
     def_relevant_files = glob.glob(os.path.join(deformetrica_data_path,
                                                 'deterministic_atlas_ct',
                                                 'output_tmp10_def10_surf',
@@ -787,10 +854,11 @@ if __name__ == '__main__':
     def_relevant_files.sort()
     print(relevant_files)
 
-    h_case_pipeline(path=absolute_data_path, start_=0, end_=0)
+    h_case_pipeline(path=absolute_data_path, start_=1, end_=19)
     # for lv in relevant_files:
-    #     model = Heart(lv)
-    #     model.write_vtk()
+    #      model = Heart(lv)
+    #      get_lowest_septal_point(model)
+
     # print(model.mesh.GetOutput().SetLines())
     # print(model.mesh.GetOutput().GetPolyLines())
     # print(model.mesh.GetOutput().SetLines(vtk.vtkCellArray()))

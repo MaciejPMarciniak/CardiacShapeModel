@@ -176,6 +176,20 @@ class Heart:
         print(self.center_of_heart)
 
     # -----Mesh manipulation----------------------------------------------------------------------------------
+    def align_slice(self, a, b, c):
+
+        center = np.mean((a, b, c), axis=0)
+        self.translate(rotation_matrix=np.eye(3), translation_vector=-center)
+
+        a2, b2, c2 = [x - center for x in [a, b, c]]
+        _normal = calculate_plane_normal(a2, b2, c2)
+        rot1 = calculate_rotation(np.array([0, 0, 1]), _normal)
+        a3, b3, c3 = [rot1 @ x for x in [a2, b2, c2]]
+        rot2 = calculate_rotation(np.array([0, 1, 0]), b3/np.linalg.norm(b3))
+        rot3 = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+        rot = rot3 @ rot2 @ rot1
+        self.rotate(rotation_matrix=rot)
+
     def apply_modes(self, modes_with_scales):
         for mode, scale in modes_with_scales.items():
             print('Applying ' + mode + ' multiplied by ' + str(scale))
@@ -280,6 +294,20 @@ class Heart:
         connectivity_filter.AddSeed(cell_id)
         connectivity_filter.Update()
         return connectivity_filter
+
+    def slice_extraction(self, origin, normal):
+        # create a plane to cut (xz normal=(1,0,0);XY =(0,0,1),YZ =(0,1,0)
+        plane = vtk.vtkPlane()
+        plane.SetOrigin(*origin)
+        plane.SetNormal(*normal)
+
+        # create cutter
+        cutter = vtk.vtkCutter()
+        cutter.SetCutFunction(plane)
+        cutter.SetInputConnection(self.mesh.GetOutputPort())
+        cutter.Update()
+
+        self.mesh = cutter
 
     def normals(self):
         normals = vtk.vtkPolyDataNormals()
@@ -755,7 +783,8 @@ def calculate_plane_normal(a, b, c):
     :param c: 3D point
     :return: Vector normal to a plane which crosses the abc points.
     """
-    return np.cross(b-a, b-c)
+    x = np.cross(b-a, b-c)
+    return x/np.linalg.norm(x)
 
 
 def get_centers(_model, _labels):
@@ -829,6 +858,27 @@ def alignment(target_model, reference_model, labels=(7, 8)):
         return target_model
 
 
+def get_plax_landmarks(_model):
+
+    lv = _model.threshold(1, 1)
+    lv_points = vtk_to_numpy(lv.GetOutput().GetPoints().GetData())
+    valve_centers = get_centers(_model, (7, 9))
+    apex_id = np.argmax([np.linalg.norm(valve_centers[0] - x) for x in lv_points])
+    apex = lv_points[apex_id]
+
+    normal = calculate_plane_normal(*valve_centers, apex)
+    origin = np.mean(np.array((apex, *valve_centers)), axis=0)
+
+    return origin, normal, (*valve_centers, apex)
+
+
+def create_plax_slices(_model):
+    origin, normal, landmarks = get_plax_landmarks(_model)
+    _model.slice_extraction(origin, normal)
+    _model.align_slice(landmarks[2], landmarks[1], landmarks[0])
+    return _model
+
+
 def h_case_pipeline(start_=1, end_=19, path=None):
     # TODO: Problem with this solution is that the files are read and written at every step. Should become
     # TODO: a pipeline, that produces only one file in the end, using a list of functions (with arguments)
@@ -836,23 +886,26 @@ def h_case_pipeline(start_=1, end_=19, path=None):
     # extract surfaces
     # apply_single_transformation_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='_',
     #                                    ext_type='PolyData', function_='extract_surface')
-    # center the meshes
-    apply_single_transformation_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='_',
-                                       ext_type='PolyData', function_='translate_to_center')
-    # clean (if possible) poorly built meshes
-    apply_single_transformation_to_all(path, input_base='h_case', version='_', start=start_, end=end_, ext='',
-                                       ext_type='PolyData', function_='clean_polydata', args='(1e-6, True)')
     #
     # # scale the meshes
-    # # apply_single_transformation_to_all(path, 'case_', version='_pc', start=start_, end=end_, ext='s', ext_type='UG',
-    # #                                    function_='scale', args='()')
+    # apply_single_transformation_to_all(path, input_base='h_case', version='_', start=start_, end=end_, ext='',
+    #                                    ext_type='UG', function_='scale', args='((.001, .001, .001))')
+    # center the meshes
+    # apply_single_transformation_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='',
+    #                                    ext_type='UG', function_='translate_to_center')
+    # clean (if possible) poorly built meshes
+    # apply_single_transformation_to_all(path, input_base='h_case', version='_', start=start_, end=end_, ext='',
+    #                                    ext_type='UG', function_='clean_polydata', args='(1e-6, True)')
     # align the meshes
-    apply_function_to_all(path, input_base='h_case', version='_', start=start_, end=end_, ext='algn',
-                          ext_type='PolyData', function_='alignment', args='labels=(7, 8), ')
+    # apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='algn',
+    #                       ext_type='UG', function_='alignment', args='labels=(7, 8), ')
     # split chambers
-    apply_function_to_all(path, 'h_case', version='_algn',  start=start_, end=end_, ext='_surface_full',
-                          function_='split_chambers', args='case, return_elements=True')
-    # # # decimate_heart
+    # apply_function_to_all(path, 'h_case', version='_algn',  start=start_, end=end_, ext='_surface_full',
+    #                       function_='split_chambers', args='case, return_elements=True')
+    # create slices
+    apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='plax',
+                          function_='create_plax_slices', args='')
+    # decimate_heart
     # apply_function_to_all(path, 'case_', '_pd_centered', start=start_, end=end_, ext='_delete',
     # function_='decimate_heart',
     # args='case')
@@ -872,9 +925,38 @@ if __name__ == '__main__':
     #                                             'DeterministicAtlas__flow__heart__subject_sub??__tp_?.vtk'))
     # def_relevant_files.sort()
 
-    print(relevant_files)
+    # print(relevant_files)
+    # model = Heart(relevant_files[0])
+    # origin, normal, landmarks = get_plax_landmarks(model)
+    # model.slice_extraction(origin, normal)
+    # model.align_slice(landmarks[2], landmarks[1], landmarks[0])
+    # model.write_vtk('slice')
+
+    # cutterMapper = vtk.vtkPolyDataMapper()
+    # cutterMapper.SetInputConnection(model.mesh.GetOutputPort())
+    #
+    # # create plane actor
+    # planeActor = vtk.vtkActor()
+    # planeActor.GetProperty().SetColor(1,1,1)
+    # planeActor.GetProperty().SetLineWidth(2)
+    # planeActor.SetMapper(cutterMapper)
+    #
+    # # create renderers and add actors of plane and cube
+    # ren = vtk.vtkRenderer()
+    # ren.AddActor(planeActor)
+    #
+    # # Add renderer to renderwindow and render
+    # renWin = vtk.vtkRenderWindow()
+    # renWin.AddRenderer(ren)
+    # renWin.SetSize(600, 600)
+    # iren = vtk.vtkRenderWindowInteractor()
+    # iren.SetRenderWindow(renWin)
+    # ren.SetBackground(0.5, 0.5, 0.5)
+    # renWin.Render()
+    # iren.Start()
 
     h_case_pipeline(path=absolute_data_path, start_=1, end_=19)
+    
     # model = Heart(filename=relevant_files[0])
     # for lv in relevant_files:
     #      model = Heart(lv)
@@ -883,8 +965,11 @@ if __name__ == '__main__':
     # print(model.mesh.GetOutput().SetLines())
     # print(model.mesh.GetOutput().GetPolyLines())
     # print(model.mesh.GetOutput().SetLines(vtk.vtkCellArray()))
-    # a = calculate_rotation(np.array([1, 0, 0]), np.array([0, 0, 1]))
-    # print(a)
+
+
+
+
+
 # ----Building models for electrophysiological simulations
 #     models = []
 #     labels = {'LV': 1, 'RV': 2, 'MV': 7, 'TV': 8, 'AV': 9, 'PV': 10}

@@ -309,6 +309,11 @@ class Heart:
 
         self.mesh = cutter
 
+    def measure_average_edge_length(self):
+        size = vtk.vtkCellSizeFilter()
+        size.SetInputConnection(self.mesh.GetOutputPort())
+        size.Update()
+
     def normals(self):
         normals = vtk.vtkPolyDataNormals()
         normals.SetInputConnection(self.mesh.GetOutputPort())
@@ -393,6 +398,8 @@ class Heart:
     # -----InputOutput----------------------------------------------------------------------------------------
     def read_vtk(self, to_polydata=False):
         # Read the source file.
+        assert os.path.isfile('.' .join([self.filename, self.input_type])), \
+            'File {} does not exist!'.format('.' .join([self.filename, self.input_type]))
         reader = vtk.vtkDataReader()
         reader.SetFileName('.' .join([self.filename, self.input_type]))
         reader.Update()
@@ -425,14 +432,14 @@ class Heart:
 
     def read_vtp(self):
         reader = vtk.vtkXMLPolyDataReader()
-        reader.SetFileName(self.filename + '.' + self.input_type)
+        reader.SetFileName('.' .join([self.filename, self.input_type]))
         reader.Update()
         scalar_range = reader.GetOutput().GetScalarRange()
         return reader, scalar_range
 
     def read_obj(self):
         reader = vtk.vtkOBJReader()
-        reader.SetFileName(self.filename + '.' + self.input_type)
+        reader.SetFileName('.' .join([self.filename, self.input_type]))
         reader.Update()
         scalar_range = reader.GetOutput().GetScalarRange()
         return reader, scalar_range
@@ -925,8 +932,12 @@ if __name__ == '__main__':
     #                                             'DeterministicAtlas__flow__heart__subject_sub??__tp_?.vtk'))
     # def_relevant_files.sort()
 
+    h_case_pipeline(path=absolute_data_path, start_=1, end_=19)
+
     # print(relevant_files)
-    # model = Heart(relevant_files[0])
+    # model = Heart(relevant_files[20])
+    # model.measure_average_edge_length()
+
     # origin, normal, landmarks = get_plax_landmarks(model)
     # model.slice_extraction(origin, normal)
     # model.align_slice(landmarks[2], landmarks[1], landmarks[0])
@@ -955,8 +966,6 @@ if __name__ == '__main__':
     # renWin.Render()
     # iren.Start()
 
-    h_case_pipeline(path=absolute_data_path, start_=1, end_=19)
-    
     # model = Heart(filename=relevant_files[0])
     # for lv in relevant_files:
     #      model = Heart(lv)

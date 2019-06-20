@@ -3,6 +3,7 @@ from vtk.util.numpy_support import vtk_to_numpy
 import numpy as np
 import os
 import glob
+from PIL import Image
 
 # 01. LV myocardium (endo + epi)
 # 02. RV myocardium (endo + epi)
@@ -295,6 +296,36 @@ class Heart:
         connectivity_filter.Update()
         return connectivity_filter
 
+    def measure_average_edge_length(self):
+        size = vtk.vtkCellSizeFilter()
+        size.SetInputConnection(self.mesh.GetOutputPort())
+        size.Update()
+
+    def normals(self):
+        normals = vtk.vtkPolyDataNormals()
+        normals.SetInputConnection(self.mesh.GetOutputPort())
+        normals.FlipNormalsOn()
+        normals.Update()
+        self.mesh = normals
+
+    def resample_to_image(self, label_name='elemTag'):
+
+        resampler = vtk.vtkResampleToImage()
+        resampler.SetInputConnection(self.mesh.GetOutputPort())
+        resampler.UseInputBoundsOff()
+        bounds = np.array(self.mesh.GetOutput().GetBounds())
+        bounds[:4] = bounds[:4] + 0.1 * bounds[:4]
+        assert np.sum(bounds[4:] < 0.001), 'The provided slice must be 2D and must be projected on the XY plane'
+
+        resampler.SetSamplingBounds(*bounds[:5], 1.01)
+        resampler.SetSamplingDimensions(1024, 1024, 1)
+        resampler.Update()
+
+        img_as_array = vtk_to_numpy(resampler.GetOutput().GetPointData().GetArray(label_name))
+        img_as_array = img_as_array.reshape((int(np.sqrt(img_as_array.shape[0])), int(np.sqrt(img_as_array.shape[0]))))
+
+        return img_as_array
+
     def slice_extraction(self, origin, normal):
         # create a plane to cut (xz normal=(1,0,0);XY =(0,0,1),YZ =(0,1,0)
         plane = vtk.vtkPlane()
@@ -308,18 +339,6 @@ class Heart:
         cutter.Update()
 
         self.mesh = cutter
-
-    def measure_average_edge_length(self):
-        size = vtk.vtkCellSizeFilter()
-        size.SetInputConnection(self.mesh.GetOutputPort())
-        size.Update()
-
-    def normals(self):
-        normals = vtk.vtkPolyDataNormals()
-        normals.SetInputConnection(self.mesh.GetOutputPort())
-        normals.FlipNormalsOn()
-        normals.Update()
-        self.mesh = normals
 
     def smooth_laplacian(self, number_of_iterations=50):
         smooth = vtk.vtkSmoothPolyDataFilter()
@@ -396,6 +415,9 @@ class Heart:
         print('Number of points: {}'.format(_mesh.GetNumberOfPoints()))
 
     # -----InputOutput----------------------------------------------------------------------------------------
+
+    # -----Readers
+
     def read_vtk(self, to_polydata=False):
         # Read the source file.
         assert os.path.isfile('.' .join([self.filename, self.input_type])), \
@@ -444,6 +466,8 @@ class Heart:
         scalar_range = reader.GetOutput().GetScalarRange()
         return reader, scalar_range
 
+    # -----Writers
+
     def write_mha(self):
 
         output_filename = self.filename + '.mha'
@@ -480,6 +504,15 @@ class Heart:
         obj_writer.SetFilePrefix(output_filename + postscript)
         obj_writer.Write()
         print('{} written succesfully'.format(output_filename + postscript + '.obj'))
+
+    def write_png(self, postscript=''):
+
+        print('Saving slice in PNG file...')
+        output_filename = self.filename + postscript + '.png'
+        image = Image.fromarray(self.resample_to_image())
+        image = image.convert('L')
+        image.save(output_filename, 'PNG')
+        print('{} written succesfully'.format(output_filename))
 
     def write_vtk(self, postscript='_new', type_='PolyData'):
         output_filename = self.filename + postscript + '.vtk'
@@ -525,8 +558,10 @@ def apply_single_transformation_to_all(path, input_base, version, start=0, end=0
         print('Cases: {}'.format(cases))
         for case in cases:
             single_model = Heart(case)
+            print('Executing single_model.' + function_ + args)
             exec('single_model.' + function_ + args)
-            single_model.write_vtk(postscript=ext, type_=ext_type)
+            if ext is not None:
+                single_model.write_vtk(postscript=ext, type_=ext_type)
 
 
 def apply_function_to_all(path, input_base, version, start=1, end=20, ext='_new', ext_type='PolyData',
@@ -550,7 +585,8 @@ def apply_function_to_all(path, input_base, version, start=1, end=20, ext='_new'
                 reference_model = single_model
                 args = args+'reference_model = reference_model'
             exec('single_model = ' + function_ + '(single_model,' + args + ')')
-            single_model.write_vtk(ext, type_=ext_type)
+            if ext is not None:
+                single_model.write_vtk(ext, type_=ext_type)
 # ------------------------------------------------------------------------------------------------------------
 
 
@@ -883,6 +919,7 @@ def create_plax_slices(_model):
     origin, normal, landmarks = get_plax_landmarks(_model)
     _model.slice_extraction(origin, normal)
     _model.align_slice(landmarks[2], landmarks[1], landmarks[0])
+    _model.rotate(gamma=-90)
     return _model
 
 
@@ -912,6 +949,9 @@ def h_case_pipeline(start_=1, end_=19, path=None):
     # create slices
     apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='plax',
                           function_='create_plax_slices', args='')
+    # save slices as png
+    apply_single_transformation_to_all(path, input_base='h_case', version='plax', start=start_, end=end_, ext=None,
+                                       function_='write_png', args='()')
     # decimate_heart
     # apply_function_to_all(path, 'case_', '_pd_centered', start=start_, end=end_, ext='_delete',
     # function_='decimate_heart',
@@ -932,11 +972,11 @@ if __name__ == '__main__':
     #                                             'DeterministicAtlas__flow__heart__subject_sub??__tp_?.vtk'))
     # def_relevant_files.sort()
 
+    relevant_files = [x for x in relevant_files if 'plax' in x]
+    print(relevant_files)
     h_case_pipeline(path=absolute_data_path, start_=1, end_=19)
 
-    # print(relevant_files)
-    # model = Heart(relevant_files[20])
-    # model.measure_average_edge_length()
+
 
     # origin, normal, landmarks = get_plax_landmarks(model)
     # model.slice_extraction(origin, normal)
@@ -974,9 +1014,6 @@ if __name__ == '__main__':
     # print(model.mesh.GetOutput().SetLines())
     # print(model.mesh.GetOutput().GetPolyLines())
     # print(model.mesh.GetOutput().SetLines(vtk.vtkCellArray()))
-
-
-
 
 
 # ----Building models for electrophysiological simulations

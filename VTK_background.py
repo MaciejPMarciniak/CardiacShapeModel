@@ -946,6 +946,7 @@ def h_case_pipeline(start_=1, end_=19, path=None):
     # split chambers
     # apply_function_to_all(path, 'h_case', version='_algn',  start=start_, end=end_, ext='_surface_full',
     #                       function_='split_chambers', args='case, return_elements=True')
+    # -----Slice extraction-----
     # create slices
     apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='plax',
                           function_='create_plax_slices', args='')
@@ -961,10 +962,6 @@ def h_case_pipeline(start_=1, end_=19, path=None):
 
 if __name__ == '__main__':
 
-    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'h_case')
-    relevant_files = glob.glob(os.path.join(absolute_data_path, 'h_case*.vtk'))
-    relevant_files.sort()
-
     # deformetrica_data_path = os.path.join('/home', 'mat', 'Deformetrica')
     # def_relevant_files = glob.glob(os.path.join(deformetrica_data_path,
     #                                             'deterministic_atlas_ct',
@@ -972,69 +969,49 @@ if __name__ == '__main__':
     #                                             'DeterministicAtlas__flow__heart__subject_sub??__tp_?.vtk'))
     # def_relevant_files.sort()
 
-    relevant_files = [x for x in relevant_files if 'plax' in x]
-    print(relevant_files)
-    h_case_pipeline(path=absolute_data_path, start_=1, end_=19)
+    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'h_case')
+    relevant_files = glob.glob(os.path.join(absolute_data_path, 'h_case*.vtk'))
+    relevant_files.sort()
 
+    tetra_data_path = os.path.join('/home', 'mat', 'Deformetrica', 'deterministic_atlas_ct', 'gmsh', 'tetra_template')
+    tetra_files = glob.glob(os.path.join(tetra_data_path, '*tetra*'))
+    tetra_files.sort()
 
-
-    # origin, normal, landmarks = get_plax_landmarks(model)
-    # model.slice_extraction(origin, normal)
-    # model.align_slice(landmarks[2], landmarks[1], landmarks[0])
-    # model.write_vtk('slice')
-
-    # cutterMapper = vtk.vtkPolyDataMapper()
-    # cutterMapper.SetInputConnection(model.mesh.GetOutputPort())
-    #
-    # # create plane actor
-    # planeActor = vtk.vtkActor()
-    # planeActor.GetProperty().SetColor(1,1,1)
-    # planeActor.GetProperty().SetLineWidth(2)
-    # planeActor.SetMapper(cutterMapper)
-    #
-    # # create renderers and add actors of plane and cube
-    # ren = vtk.vtkRenderer()
-    # ren.AddActor(planeActor)
-    #
-    # # Add renderer to renderwindow and render
-    # renWin = vtk.vtkRenderWindow()
-    # renWin.AddRenderer(ren)
-    # renWin.SetSize(600, 600)
-    # iren = vtk.vtkRenderWindowInteractor()
-    # iren.SetRenderWindow(renWin)
-    # ren.SetBackground(0.5, 0.5, 0.5)
-    # renWin.Render()
-    # iren.Start()
-
-    # model = Heart(filename=relevant_files[0])
-    # for lv in relevant_files:
-    #      model = Heart(lv)
-    #      get_lowest_septal_point(model)
-
-    # print(model.mesh.GetOutput().SetLines())
-    # print(model.mesh.GetOutput().GetPolyLines())
-    # print(model.mesh.GetOutput().SetLines(vtk.vtkCellArray()))
-
+# -----Main Pipeline
+#     h_case_pipeline(path=absolute_data_path, start_=1, end_=19)
+# -----------------
 
 # ----Building models for electrophysiological simulations
-#     models = []
-#     labels = {'LV': 1, 'RV': 2, 'MV': 7, 'TV': 8, 'AV': 9, 'PV': 10}
-#     for shape in relevant_files:
-#         print(shape[-12:-10])
-#         model = Heart(shape)
-#         model.build_tag(label=labels[shape[-12:-10]])
-#         model.change_tag_label()
-#         models.append(model)
-#
-#     final_model = models.pop(0)
-#     for model_to_merge in models:
-#         print(model_to_merge)
-#         final_model.mesh = merge_elements(final_model.mesh, model_to_merge.mesh)
-#     # final_model.tetrahedralize()
-#     # final_model.ug_geometry()
-#     final_model.write_vtk(postscript='merged', type_='UG')
+    models = []
+    for element in tetra_files:
+        print(element)
+        print(os.path.basename(element))
+        element_name = os.path.basename(element).split('_')[0]
+        print(element_name)
+        model = Heart(element)
+        element_tag = [i+1 for i, elem in enumerate(model.list_of_elements) if elem == element_name][0]
+        print('Element name: {}, element tag: {}'.format(element_name, element_tag))
+        model.build_tag(label=element_tag)
+        model.change_tag_label()
+        models.append(model)
+
+    final_model = models.pop(0)
+    for model_to_merge in models:
+        final_model.mesh = merge_elements(final_model.mesh, model_to_merge.mesh)
+    final_model.tetrahedralize()
+    final_model.write_vtk(postscript='merged', type_='UG')
 # -----------------------------------------------------------------------
 
+# -----Testing single function
+#     relevant_files = [x for x in relevant_files if 'plax' in x]
+#     print(relevant_files)
+#     model = Heart(filename=relevant_files[0])
+#     for lv in relevant_files:
+#         model = Heart(lv)
+#         get_lowest_septal_point(model)
+# ----------------------------
+
+# -----Frangi dataset------------------------------------------------------------------------------------------
 # labels_and_ranges = ({'label': 1, 'range': (0, 472726)}, {'label': 2, 'range': (472726, 688801)})
 # model.mesh = assign_tags(model.mesh, labels_and_ranges)
 # model.write_vtk(postscript='tagged', type_='UG')
@@ -1062,5 +1039,4 @@ if __name__ == '__main__':
 # modes = {'mode_01': -2.5, 'mode_02': -2.4, 'mode_03': 2.2, 'mode_07': 1.2}
 # model.apply_modes(modes)
 # model.visualize_mesh()
-
 # ------------------------------------------------------------------------------------------------------------

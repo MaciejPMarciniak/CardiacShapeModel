@@ -8,27 +8,34 @@ from pathlib import Path
 
 class ShootingSupport:
 
-    def __init__(self, main_path, models_path, geo_path, output_path, k_model):
+    def __init__(self, main_path, models_path, geo_path, temp_path, output_path, k_model, template=False):
         self.main_path = main_path
         self.models_path = models_path
-        self.output_path = output_path
+        self.temp_path = temp_path
         self.geo_path = geo_path
+        self.output_path = output_path
         self.k_model = k_model
+        self.template = template
 
     def clean(self):
-        [f.unlink() for f in Path(self.output_path).glob("*") if f.is_file()]
+        [f.unlink() for f in Path(self.temp_path).glob("*") if f.is_file()]
 
     def copy_model(self):
         self.clean()
-        model_files = glob.glob(os.path.join(self.models_path, 'Shooting_{}_*'.format(self.k_model)))
+        print(self.models_path)
+        if not self.template:
+            model_files = glob.glob(os.path.join(self.models_path, 'Shooting_{}_*'.format(self.k_model)))
+        else:
+            model_files = glob.glob(os.path.join(models_path, '*Template*'))
+        print(model_files)
         model_files = [mf for mf in model_files if 'ControlPoints' not in mf and'Momenta' not in mf]
         for mf in model_files:
-            copyfile(mf, os.path.join(self.output_path, os.path.basename(mf)))
+            copyfile(mf, os.path.join(self.temp_path, os.path.basename(mf)))
 
     def modify_geo_files(self):
         geo_files = glob.glob(os.path.join(self.geo_path, '*.geo'))
         geo_files.sort()
-        model_files = glob.glob(os.path.join(self.output_path, '*'))
+        model_files = glob.glob(os.path.join(self.temp_path, '*'))
         model_files.sort()
 
         for gf, mf in zip(geo_files, model_files):
@@ -60,12 +67,18 @@ class ShootingSupport:
             final_model.mesh = merge_elements(final_model.mesh, model_to_merge.mesh)
         final_model.tetrahedralize()
         final_model.write_vtk(postscript='merged', type_='UG')
-        os.rename(os.path.join(self.main_path, 'tetra', 'LV_tetramerged.vtk'),
-                  os.path.join(self.main_path, 'tetra', 'Full_Heart_{}.vtk'.format(self.k_model)))
-        move(os.path.join(self.main_path, 'tetra', 'Full_Heart_{}.vtk'.format(self.k_model)),
-             os.path.join(self.models_path, 'tetra', 'Full_Heart_{}.vtk'.format(self.k_model)))
+        if not self.template:
+            os.rename(os.path.join(self.main_path, 'tetra', 'LV_tetramerged.vtk'),
+                      os.path.join(self.main_path, 'tetra', 'Full_Heart_{}.vtk'.format(self.k_model)))
+            move(os.path.join(self.main_path, 'tetra', 'Full_Heart_{}.vtk'.format(self.k_model)),
+                 os.path.join(self.output_path, 'Full_Heart_{}.vtk'.format(self.k_model)))
+        else:
+            os.rename(os.path.join(self.main_path, 'tetra', 'LV_tetramerged.vtk'),
+                      os.path.join(self.main_path, 'tetra', 'Full_Template.vtk'))
+            move(os.path.join(self.main_path, 'tetra', 'Full_Template.vtk'),
+                 os.path.join(self.output_path, 'Full_Template.vtk'))
 
-    def pipeline_shot_model_2_tetra_mesh(self):
+    def pipeline_surf_2_tetra_mesh(self):
         self.copy_model()
         self.modify_geo_files()
         self.run_tetrahedralization()
@@ -73,10 +86,22 @@ class ShootingSupport:
 
 
 if __name__ == '__main__':
-    for i in range(0, 40):
-        sup = ShootingSupport('/home/mat/Deformetrica/deterministic_atlas_ct/gmsh',
-                              '/media/mat/BEDC-845B/output_shooting_random/final_steps',
-                              '/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/geofiles',
-                              '/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/current_model',
-                              i)
-        sup.pipeline_shot_model_2_tetra_mesh()
+
+    # TODO: Make sure that the element files of vtk and geo are sorted in the same way in 'modify_geo_files'
+
+    for i in range(0, 1):
+        output_path = '/media/mat/D6B7-122E/Final_models_{}'.format(str(i).zfill(2))
+        models_path = ('/home/mat/Deformetrica/deterministic_atlas_ct/'
+                       'output_shooting/extreme_shapes').format(i)
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+        for j in range(0, 18):
+
+            sup = ShootingSupport(main_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh',
+                                  models_path=models_path,
+                                  geo_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/geofiles',
+                                  temp_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/current_model',
+                                  output_path=output_path,
+                                  k_model=j,
+                                  template=False)
+            sup.pipeline_surf_2_tetra_mesh()

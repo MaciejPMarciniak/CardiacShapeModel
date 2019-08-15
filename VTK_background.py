@@ -232,7 +232,7 @@ class Heart:
         decimation = vtk.vtkQuadricDecimation()
         decimation.SetInputConnection(self.mesh.GetOutputPort())
         decimation.VolumePreservationOn()
-        decimation.SetTargetReduction(reduction / 100)  # percent of removed triangles
+        decimation.SetTargetReduction(reduction / 100)  # percent of kept triangles
         decimation.Update()
         self.mesh = decimation
 
@@ -300,6 +300,7 @@ class Heart:
         size = vtk.vtkCellSizeFilter()
         size.SetInputConnection(self.mesh.GetOutputPort())
         size.Update()
+        print(size)
 
     def normals(self):
         normals = vtk.vtkPolyDataNormals()
@@ -307,6 +308,13 @@ class Heart:
         normals.FlipNormalsOn()
         normals.Update()
         self.mesh = normals
+
+    def pass_array(self):
+        passer = vtk.vtkPassArrays()
+        passer.SetInputConnection(self.mesh.GetOutputPort())
+        passer.AddCellDataArray('elemTag')
+        passer.Update()
+        self.mesh = passer
 
     def resample_to_image(self, label_name='elemTag'):
 
@@ -394,7 +402,7 @@ class Heart:
         self.mesh = geometry
 
     def unstructured_grid_to_poly_data(self):
-        geometry_filter = vtk.vtkExtractGeometry()
+        geometry_filter = vtk.vtkDataSetSurfaceFilter()
         geometry_filter.SetInputConnection(self.mesh.GetOutputPort())
         geometry_filter.Update()
         return geometry_filter
@@ -543,51 +551,6 @@ class Heart:
         writer.Update()
         writer.Write()
     # --------------------------------------------------------------------------------------------------------
-
-
-# TODO: Make all of the functions and parameters below into a class!!!
-# -----ApplyToCohort------------------------------------------------------------------------------------------
-def apply_single_transformation_to_all(path, input_base, version, start=0, end=0, ext='_new', ext_type='PolyData',
-                                       function_=None, args='()'):
-    if function_ is not None:
-        if start == end:
-            cases = [os.path.join(path, f) for f in os.listdir(path) if f[-4:] == ".vtk"]
-        else:
-            cases = [path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk' for case_no in
-                     range(start, end + 1)]
-        print('Cases: {}'.format(cases))
-        for case in cases:
-            single_model = Heart(case)
-            print('Executing single_model.' + function_ + args)
-            exec('single_model.' + function_ + args)
-            if ext is not None:
-                single_model.write_vtk(postscript=ext, type_=ext_type)
-
-
-def apply_function_to_all(path, input_base, version, start=1, end=20, ext='_new', ext_type='PolyData',
-                          function_=None, args=''):
-    if function_ is not None:
-        if start == end:
-            cases = [os.path.join(path, f) for f in os.listdir(path) if f[-4:] == ".vtk"]
-        else:
-            cases = [path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk' for case_no in
-                     range(start, end + 1)]
-        for c, case in enumerate(cases):
-            print(c, case)
-            single_model = Heart(case)
-            if function_ == 'align_with_rotation_only' and c == 0:
-                anchoring_element = single_model.get_center(single_model.threshold(7, 7))
-                direction_vector = single_model.get_center(single_model.threshold(8, 8)) - anchoring_element
-                target_plane_norm = single_model.get_center(single_model.threshold(9, 9))  # 9 ~ Aortic valve
-                plane_norm = calculate_plane_normal(anchoring_element, direction_vector/2, target_plane_norm)
-                args = args+'direction_vector=direction_vector, plane_norm=plane_norm'
-            if function_ == 'alignment' and c == 0:
-                reference_model = single_model
-                args = args+'reference_model = reference_model'
-            exec('single_model = ' + function_ + '(single_model,' + args + ')')
-            if ext is not None:
-                single_model.write_vtk(ext, type_=ext_type)
-# ------------------------------------------------------------------------------------------------------------
 
 
 # -----ApplyToChambers----------------------------------------------------------------------------------------
@@ -778,6 +741,12 @@ def assign_tags(_mesh, label_and_range_tuple=({},)):
     return _mesh
 
 
+def remove_array(_model, array_name):
+
+    _model.mesh.GetOutput().GetAttributes(1).RemoveArray(array_name)  # remove point attribute
+    return _model
+
+
 def merge_elements(elem1, elem2):
     """
     Appends elements and returns the single connected mesh. The points in the same position in 3D are merged into one.
@@ -922,11 +891,58 @@ def create_plax_slices(_model):
     _model.rotate(gamma=-90)
     return _model
 
+# TODO: Make all of the functions and parameters below into a class!!!
+# -----ApplyToCohort------------------------------------------------------------------------------------------
+
+
+def apply_single_transformation_to_all(path, input_base, version, start=0, end=0, ext='_new', ext_type='PolyData',
+                                       function_=None, args='()'):
+    if function_ is not None:
+        if start == end:
+            cases = [os.path.join(path, f) for f in os.listdir(path) if f[-4:] == ".vtk"]
+        else:
+            cases = [path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk' for case_no in
+                     range(start, end + 1)]
+        print('Cases: {}'.format(cases))
+        for case in cases:
+            single_model = Heart(case)
+            print('Executing single_model.' + function_ + args)
+            exec('single_model.' + function_ + args)
+            if ext is not None:
+                single_model.write_vtk(postscript=ext, type_=ext_type)
+
+
+def apply_function_to_all(path, input_base, version, start=1, end=20, ext='_new', ext_type='PolyData',
+                          function_=None, args=''):
+    if function_ is not None:
+        if start == end:
+            cases = [os.path.join(path, f) for f in os.listdir(path) if f[-4:] == ".vtk"]
+        else:
+            cases = [path + '/' + input_base + str(case_no).zfill(2) + version + '.vtk' for case_no in
+                     range(start, end + 1)]
+        for c, case in enumerate(cases):
+            print(c, case)
+            single_model = Heart(case)
+            if function_ == 'align_with_rotation_only' and c == 0:
+                anchoring_element = single_model.get_center(single_model.threshold(7, 7))
+                direction_vector = single_model.get_center(single_model.threshold(8, 8)) - anchoring_element
+                target_plane_norm = single_model.get_center(single_model.threshold(9, 9))  # 9 ~ Aortic valve
+                plane_norm = calculate_plane_normal(anchoring_element, direction_vector/2, target_plane_norm)
+                args = args+'direction_vector=direction_vector, plane_norm=plane_norm'
+            if function_ == 'alignment' and c == 0:
+                reference_model = single_model
+                args = args+'reference_model = reference_model'
+            exec('single_model = ' + function_ + '(single_model,' + args + ')')
+            if ext is not None:
+                single_model.write_vtk(ext, type_=ext_type)
+# ------------------------------------------------------------------------------------------------------------
+
 
 def h_case_pipeline(start_=1, end_=19, path=None):
     # TODO: Problem with this solution is that the files are read and written at every step. Should become
     # TODO: a pipeline, that produces only one file in the end, using a list of functions (with arguments)
 
+    # Remove all intermittent results just in case!!!
     # extract surfaces
     # apply_single_transformation_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='_',
     #                                    ext_type='PolyData', function_='extract_surface')
@@ -941,18 +957,18 @@ def h_case_pipeline(start_=1, end_=19, path=None):
     # apply_single_transformation_to_all(path, input_base='h_case', version='_', start=start_, end=end_, ext='',
     #                                    ext_type='UG', function_='clean_polydata', args='(1e-6, True)')
     # align the meshes
-    # apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='algn',
-    #                       ext_type='UG', function_='alignment', args='labels=(7, 8), ')
+    apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='algn',
+                          ext_type='UG', function_='alignment', args='labels=(7, 8), ')
     # split chambers
-    # apply_function_to_all(path, 'h_case', version='_algn',  start=start_, end=end_, ext='_surface_full',
-    #                       function_='split_chambers', args='case, return_elements=True')
+    apply_function_to_all(path, 'h_case', version='algn',  start=start_, end=end_, ext='_surface_full',
+                          function_='split_chambers', args='case, return_elements=True')
     # -----Slice extraction-----
     # create slices
-    apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='plax',
-                          function_='create_plax_slices', args='')
-    # save slices as png
-    apply_single_transformation_to_all(path, input_base='h_case', version='plax', start=start_, end=end_, ext=None,
-                                       function_='write_png', args='()')
+    # apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='plax',
+    #                       function_='create_plax_slices', args='')
+    # # save slices as png
+    # apply_single_transformation_to_all(path, input_base='h_case', version='plax', start=start_, end=end_, ext=None,
+    #                                    function_='write_png', args='()')
     # decimate_heart
     # apply_function_to_all(path, 'case_', '_pd_centered', start=start_, end=end_, ext='_delete',
     # function_='decimate_heart',
@@ -982,24 +998,24 @@ if __name__ == '__main__':
 # -----------------
 
 # ----Building models for electrophysiological simulations
-    models = []
-    for element in tetra_files:
-        print(element)
-        print(os.path.basename(element))
-        element_name = os.path.basename(element).split('_')[0]
-        print(element_name)
-        model = Heart(element)
-        element_tag = [i+1 for i, elem in enumerate(model.list_of_elements) if elem == element_name][0]
-        print('Element name: {}, element tag: {}'.format(element_name, element_tag))
-        model.build_tag(label=element_tag)
-        model.change_tag_label()
-        models.append(model)
-
-    final_model = models.pop(0)
-    for model_to_merge in models:
-        final_model.mesh = merge_elements(final_model.mesh, model_to_merge.mesh)
-    final_model.tetrahedralize()
-    final_model.write_vtk(postscript='merged', type_='UG')
+#     models = []
+#     for element in tetra_files:
+#         print(element)
+#         print(os.path.basename(element))
+#         element_name = os.path.basename(element).split('_')[0]
+#         print(element_name)
+#         model = Heart(element)
+#         element_tag = [i+1 for i, elem in enumerate(model.list_of_elements) if elem == element_name][0]
+#         print('Element name: {}, element tag: {}'.format(element_name, element_tag))
+#         model.build_tag(label=element_tag)
+#         model.change_tag_label()
+#         models.append(model)
+#
+#     final_model = models.pop(0)
+#     for model_to_merge in models:
+#         final_model.mesh = merge_elements(final_model.mesh, model_to_merge.mesh)
+#     final_model.tetrahedralize()
+#     final_model.write_vtk(postscript='merged', type_='UG')
 # -----------------------------------------------------------------------
 
 # -----Testing single function
@@ -1027,16 +1043,15 @@ if __name__ == '__main__':
 # model.normals()
 # model.write_vtk(postscript='smooth')
 
-# model.visualize_mesh()  # Mean shape. Close the mesh window to move on
-# model.get_external_surface()
-# model.write_vtk()
-# model.write_obj()
-# This is how we define modes. They come in pairs
-# 'name of mode': scale
-# names are from mode_01 to mode_41
-# scale can be positive or negative, 0 means no deformation in that direction
-# modes can be added or removed
-# modes = {'mode_01': -2.5, 'mode_02': -2.4, 'mode_03': 2.2, 'mode_07': 1.2}
-# model.apply_modes(modes)
+# model = Heart("/home/mat/Deformetrica/deterministic_atlas_ct/Temp/DeterministicAtlas__EstimatedParameters__Template_LV.vtk")
+#
+# # This is how we define modes. They come in pairs
+# # 'name of mode': scale
+# # names are from mode_01 to mode_41
+# # scale can be positive or negative, 0 means no deformation in that direction
+# # modes can be added or removed
+# # modes = {'mode_01': -2.5, 'mode_02': -2.4, 'mode_03': 2.2, 'mode_07': 1.2}
+# # model.apply_modes(modes)
 # model.visualize_mesh()
+# model.write_vtk(postscript='warped')
 # ------------------------------------------------------------------------------------------------------------

@@ -37,7 +37,7 @@ from PIL import Image
 # 24. Inferior vena cava border
 
 
-class Heart:
+class Model:
 
     list_of_elements = ['LV', 'RV', 'LA', 'RA', 'AO', 'PA', 'MV', 'TV', 'AV', 'PV',
                         'APP', 'LSPV', 'LIPV', 'RIPV', 'RSPV', 'SVC', 'IVC',
@@ -64,8 +64,8 @@ class Heart:
 
         # self.scalar_range = [1.0, 17.0]  # Added for particular case of CT meshes
         # print('Corrected scalar range: {}'.format(self.scalar_range))
-        self.center_of_heart = self.get_center(self.mesh)
-        print('Model centered at: {}'.format(self.center_of_heart))
+        self.center_of_model = self.get_center(self.mesh)
+        print('Model centered at: {}'.format(self.center_of_model))
         self.label = 0
 
     @staticmethod
@@ -87,32 +87,39 @@ class Heart:
         mapper.SetScalarRange(self.scalar_range)
 
         # Create the Actor
+        camera = vtk.vtkCamera()
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(vtk.util.colors.red)
+        actor.GetProperty().SetOpacity(0.5)
 
         # Create the Renderer
         renderer = vtk.vtkRenderer()
         renderer.ResetCameraClippingRange()
         renderer.AddActor(actor)  # More actors can be added
+        renderer.SetActiveCamera(camera)
         renderer.SetBackground(1, 1, 1)  # Set background to white
 
         # Create the RendererWindow
-        renderer_window = vtk.vtkRenderWindow()
-        renderer_window.AddRenderer(renderer)
+        render_window = vtk.vtkRenderWindow()
+        render_window.AddRenderer(renderer)
+        render_window.SetSize(600, 600)
+        render_window.Render()
 
         # Display the mesh
         # noinspection PyArgumentList
         if display:
             interactor = vtk.vtkRenderWindowInteractor()
-            interactor.SetRenderWindow(renderer_window)
+            interactor.SetRenderWindow(render_window)
             interactor.Initialize()
             interactor.Start()
         else:
-            return renderer_window
+            return render_window
 
     # -----3D rigid transformations---------------------------------------------------------------------------
 
     def rotate(self, alpha=0, beta=0, gamma=0, rotation_matrix=None):
+        print('rotating')
         rotate = vtk.vtkTransform()
         if rotation_matrix is not None:
             translation_matrix = np.eye(4)
@@ -129,9 +136,10 @@ class Heart:
         transformer.SetTransform(rotate)
         transformer.Update()
         self.mesh = transformer
-        self.center_of_heart = self.get_center(self.mesh)
+        self.center_of_model = self.get_center(self.mesh)
 
     def scale(self, factor=(0.001, 0.001, 0.001)):
+        print('scaling')
         scale = vtk.vtkTransform()
         scale.Scale(factor[0], factor[1], factor[2])
         transformer = vtk.vtkTransformFilter()
@@ -139,10 +147,11 @@ class Heart:
         transformer.SetTransform(scale)
         transformer.Update()
         self.mesh = transformer
-        self.center_of_heart = self.get_center(self.mesh)
-        print(self.center_of_heart)
+        self.center_of_model = self.get_center(self.mesh)
+        print(self.center_of_model)
 
     def translate(self, rotation_matrix, translation_vector):
+        print('translating')
         translate = vtk.vtkTransform()
         translation_matrix = np.eye(4)
         translation_matrix[:-1, :-1] = rotation_matrix
@@ -154,31 +163,31 @@ class Heart:
         transformer.SetTransform(translate)
         transformer.Update()
         self.mesh = transformer
-        self.center_of_heart = self.get_center(self.mesh)
+        self.center_of_model = self.get_center(self.mesh)
 
     def translate_to_center(self, label=None):
         # vtkTransform.SetMatrix - enables for applying 4x4 transformation matrix to the meshes
         # if label is provided, translates to the center of the element with that label
+        print('translating o center')
         translate = vtk.vtkTransform()
-        print('translating_to_center')
         if label is not None:
             central_element = self.threshold(label, label)
             center_of_element = self.get_center(central_element)
             translate.Translate(-center_of_element[0], -center_of_element[1], -center_of_element[2])
         else:
-            translate.Translate(-self.center_of_heart[0], -self.center_of_heart[1], -self.center_of_heart[2])
+            translate.Translate(-self.center_of_model[0], -self.center_of_model[1], -self.center_of_model[2])
         translate.Update()
         transformer = vtk.vtkTransformFilter()
         transformer.SetInputConnection(self.mesh.GetOutputPort())
         transformer.SetTransform(translate)
         transformer.Update()
         self.mesh = transformer
-        self.center_of_heart = self.get_center(self.mesh)
-        print(self.center_of_heart)
+        self.center_of_model = self.get_center(self.mesh)
+        print(self.center_of_model)
 
     # -----Mesh manipulation----------------------------------------------------------------------------------
     def align_slice(self, a, b, c):
-
+        print('aligning slice')
         center = np.mean((a, b, c), axis=0)
         self.translate(rotation_matrix=np.eye(3), translation_vector=-center)
 
@@ -192,6 +201,7 @@ class Heart:
         self.rotate(rotation_matrix=rot)
 
     def apply_modes(self, modes_with_scales):
+        print('applying modes')
         for mode, scale in modes_with_scales.items():
             print('Applying ' + mode + ' multiplied by ' + str(scale))
             self.mesh.GetOutput().GetPointData().SetActiveVectors(mode)
@@ -202,6 +212,7 @@ class Heart:
             self.mesh = warp_vector
 
     def build_tag(self, label):
+        print('building tag')
         self.label = label
         tag = vtk.vtkIdFilter()
         tag.CellIdsOn()
@@ -211,12 +222,24 @@ class Heart:
         tag.Update()
         self.mesh = tag
 
+    @staticmethod
+    def calculate_bounding_box_diagonal(bounds):
+        return np.sqrt(np.power(bounds[0] - bounds[1], 2) +
+                       np.power(bounds[2] - bounds[3], 2) +
+                       np.power(bounds[4] - bounds[5], 2))
+
+    def calculate_maximum_distance(self, bounds, target_offset):
+        d = self.calculate_bounding_box_diagonal(bounds)
+        return target_offset / d
+
     def change_tag_label(self):
+        print('changing tag label')
         size = self.mesh.GetOutput().GetAttributes(1).GetArray(0).GetSize()
         for id in range(size):
             self.mesh.GetOutput().GetAttributes(1).GetArray(0).SetTuple(id, (float(self.label),))
 
     def clean_polydata(self, tolerance=0.005, remove_lines=False):
+        print('cleaning polydata')
         cleaner = vtk.vtkCleanPolyData()
         cleaner.SetInputConnection(self.mesh.GetOutputPort())
         cleaner.SetTolerance(tolerance)
@@ -228,7 +251,17 @@ class Heart:
         if remove_lines:
             self.mesh.GetOutput().SetLines(vtk.vtkCellArray())
 
+    def contouring(self):
+        print('contouring')
+        contour = vtk.vtkContourFilter()
+        contour.SetInputConnection(self.mesh.GetOutputPort())
+        contour.GenerateTrianglesOn()
+        contour.SetValue(0, 10.0)
+        contour.Update()
+        self.mesh = contour
+
     def decimation(self, reduction=50):
+        print('decimating')
         decimation = vtk.vtkQuadricDecimation()
         decimation.SetInputConnection(self.mesh.GetOutputPort())
         decimation.VolumePreservationOn()
@@ -237,18 +270,21 @@ class Heart:
         self.mesh = decimation
 
     def delaunay2d(self):
+        print('triangulating 2D')
         delaunay2d = vtk.vtkDelaunay2D()
         delaunay2d.SetInputConnection(self.mesh.GetOutputPort())
         delaunay2d.Update()
         self.mesh = delaunay2d
 
     def delaunay3d(self):
+        print('triangulating 3D')
         delaunay3d = vtk.vtkDelaunay3D()
         delaunay3d.SetInputConnection(self.mesh.GetOutputPort())
         delaunay3d.Update()
         self.mesh = delaunay3d
 
     def extract_surface(self):
+        print('extracting surface')
         # Get surface of the mesh
         surface_filter = vtk.vtkDataSetSurfaceFilter()
         surface_filter.SetInputData(self.mesh.GetOutput())
@@ -256,14 +292,15 @@ class Heart:
         self.mesh = surface_filter
 
     def fill_holes(self, hole_size=10.0):
+        print('filling holes')
         filling_filter = vtk.vtkFillHolesFilter()
         filling_filter.SetInputConnection(self.mesh.GetOutputPort())
         filling_filter.SetHoleSize(hole_size)
         filling_filter.Update()
         self.mesh = filling_filter
 
-    @staticmethod
-    def get_external_surface(_mesh, external=True):
+    def get_external_surface(self):
+        print('getting external surface')
         _center = np.zeros(3)
         _bounds = np.zeros(6)
         _ray_start = np.zeros(3)
@@ -272,29 +309,41 @@ class Heart:
         pcoords = np.zeros(3)
         t = vtk.mutable(0)
         sub_id = vtk.mutable(0)
-        if external:
-            surf = 1.1
-        else:
-            surf = -1.1
+        _surf = 1.1
 
-        _mesh.GetOutput().GetCenter(_center)
-        _mesh.GetOutput().GetPoints().GetBounds(_bounds)
+        self.mesh.GetOutput().GetCenter(_center)
+        self.mesh.GetOutput().GetPoints().GetBounds(_bounds)
         for j in range(3):
-            _ray_start[j] = _bounds[2 * j + 1] * surf
+            _ray_start[j] = _bounds[2 * j + 1] * _surf
 
         cell_locator = vtk.vtkCellLocator()
-        cell_locator.SetDataSet(_mesh.GetOutput())
+        cell_locator.SetDataSet(self.mesh.GetOutput())
         cell_locator.BuildLocator()
         cell_locator.IntersectWithLine(_ray_start, _center, 0.0001, t, xyz, pcoords, sub_id, cell_id)
-        print('ID of the cell on the outer surface: {}'.format(cell_id))
 
         connectivity_filter = vtk.vtkConnectivityFilter()
-        connectivity_filter.SetInputConnection(_mesh.GetOutputPort())
+        connectivity_filter.SetInputConnection(self.mesh.GetOutputPort())
         connectivity_filter.SetExtractionModeToCellSeededRegions()
         connectivity_filter.InitializeSeedList()
         connectivity_filter.AddSeed(cell_id)
         connectivity_filter.Update()
-        return connectivity_filter
+        self.mesh = connectivity_filter  # UnstructuredGrid
+
+    def implicit_modeller(self, distance):
+        print('implicit modelling')
+        # Create implicit model with vtkImplicitModeller at the 'distance' (in mesh's units) from the provided geometry.
+        bounds = np.array(self.mesh.GetOutput().GetPoints().GetBounds())
+        max_dist = self.calculate_maximum_distance(bounds, distance)
+        imp = vtk.vtkImplicitModeller()
+        imp.SetInputConnection(self.mesh.GetOutputPort())
+        imp.SetSampleDimensions(200, 200, 200)
+        imp.SetMaximumDistance(max_dist)
+        imp.SetScaleToMaximumDistance(1)
+        imp.SetModelBounds(*(bounds * 1.5))
+        imp.CappingOn()
+        imp.SetCapValue(20.0)
+        imp.Update()
+        self.mesh = imp
 
     def measure_average_edge_length(self):
         size = vtk.vtkCellSizeFilter()
@@ -303,6 +352,7 @@ class Heart:
         print(size)
 
     def normals(self):
+        print('getting normals')
         normals = vtk.vtkPolyDataNormals()
         normals.SetInputConnection(self.mesh.GetOutputPort())
         normals.FlipNormalsOn()
@@ -310,6 +360,7 @@ class Heart:
         self.mesh = normals
 
     def pass_array(self):
+        print('passing arrays')
         passer = vtk.vtkPassArrays()
         passer.SetInputConnection(self.mesh.GetOutputPort())
         passer.AddCellDataArray('elemTag')
@@ -317,7 +368,7 @@ class Heart:
         self.mesh = passer
 
     def resample_to_image(self, label_name='elemTag'):
-
+        print('resampling to image')
         resampler = vtk.vtkResampleToImage()
         resampler.SetInputConnection(self.mesh.GetOutputPort())
         resampler.UseInputBoundsOff()
@@ -335,6 +386,7 @@ class Heart:
         return img_as_array
 
     def slice_extraction(self, origin, normal):
+        print('extracting slices')
         # create a plane to cut (xz normal=(1,0,0);XY =(0,0,1),YZ =(0,1,0)
         plane = vtk.vtkPlane()
         plane.SetOrigin(*origin)
@@ -349,6 +401,7 @@ class Heart:
         self.mesh = cutter
 
     def smooth_laplacian(self, number_of_iterations=50):
+        print('laplacian smoothing')
         smooth = vtk.vtkSmoothPolyDataFilter()
         smooth.SetInputConnection(self.mesh.GetOutputPort())
         smooth.SetNumberOfIterations(number_of_iterations)
@@ -357,7 +410,8 @@ class Heart:
         smooth.Update()
         self.mesh = smooth
 
-    def smooth_window(self, number_of_iterations=15, pass_band=0.5):
+    def smooth_window(self, number_of_iterations=30, pass_band=0.05):
+        print('window smoothing')
         smooth = vtk.vtkWindowedSincPolyDataFilter()
         smooth.SetInputConnection(self.mesh.GetOutputPort())
         smooth.SetNumberOfIterations(number_of_iterations)
@@ -370,6 +424,7 @@ class Heart:
         self.mesh = smooth
 
     def subdivision(self, number_of_subdivisions=3):
+        print('subdividing')
         self.normals()
         subdivision = vtk.vtkLinearSubdivisionFilter()
         subdivision.SetNumberOfSubdivisions(number_of_subdivisions)
@@ -379,6 +434,7 @@ class Heart:
         self.visualize_mesh(True)
 
     def tetrahedralize(self, leave_tetra_only=True):
+        print('creating tetrahedrons')
         tetra = vtk.vtkDataSetTriangleFilter()
         if leave_tetra_only:
             tetra.TetrahedraOnlyOn()
@@ -387,6 +443,7 @@ class Heart:
         self.mesh = tetra
 
     def threshold(self, low=0, high=100):
+        print('thresholding')
         threshold = vtk.vtkThreshold()
         threshold.SetInputConnection(self.mesh.GetOutputPort())
         threshold.ThresholdBetween(low, high)
@@ -395,6 +452,7 @@ class Heart:
         return threshold
 
     def ug_geometry(self):
+        print('setting unstructured grid geometry')
         geometry = vtk.vtkUnstructuredGridGeometryFilter()
         print(geometry.GetDuplicateGhostCellClipping())
         geometry.SetInputConnection(self.mesh.GetOutputPort())
@@ -402,10 +460,11 @@ class Heart:
         self.mesh = geometry
 
     def unstructured_grid_to_poly_data(self):
-        geometry_filter = vtk.vtkDataSetSurfaceFilter()
-        geometry_filter.SetInputConnection(self.mesh.GetOutputPort())
-        geometry_filter.Update()
-        return geometry_filter
+        print('transforming UG into PD')
+        surface = vtk.vtkDataSetSurfaceFilter()
+        surface.SetInputConnection(self.mesh.GetOutputPort())
+        surface.Update()
+        return surface
 
     # -----MeshInformation------------------------------------------------------------------------------------
     def get_volume(self):
@@ -415,7 +474,7 @@ class Heart:
 
     def print_numbers(self):
         _mesh = self.mesh.GetOutput()
-        print('Number of verices: {}'.format(_mesh.GetNumberOfVerts()))
+        print('Number of vertices: {}'.format(_mesh.GetNumberOfVerts()))
         print('Number of lines: {}'.format(_mesh.GetNumberOfLines()))
         print('Number of strips: {}'.format(_mesh.GetNumberOfStrips()))
         print('Number of polys: {}'.format(_mesh.GetNumberOfPolys()))
@@ -603,21 +662,21 @@ def decimate_heart(full_model, case=None):
 
 def decimate_chambers(full_model, case=None):
     all_points = full_model.mesh.GetOutput().GetNumberOfPoints()
-    FINAL_POINTS = 10000
+    final_points = 10000
     built_points = 0
-    reduction = (1 - FINAL_POINTS / all_points) * 100
+    reduction = (1 - final_points / all_points) * 100
     chambers = ['lv', 'rv', 'ra', 'la']
     case_split = case.split('.')
     sum_chamber_points = 0
     for chamber in chambers:
         print('decimating ' + chamber)
-        _model = Heart(case_split[0].strip('ful') + chamber + '.' + case_split[1])
+        _model = Model(case_split[0].strip('ful') + chamber + '.' + case_split[1])
         _model.smooth_laplacian(500)
         chamber_points = _model.mesh.GetOutput().GetNumberOfPoints()
         expected_number_of_points = np.round((1 - reduction / 100) * chamber_points)
         built_points += expected_number_of_points
         if chamber == 'la':
-            expected_number_of_points += FINAL_POINTS - built_points
+            expected_number_of_points += final_points - built_points
         reduction = hill_climb_with_magnitude(initial_x=reduction, eval_function=eval_decimation,
                                               goal=expected_number_of_points, step=0.001, this_model=_model)
         _model.decimation(reduction=reduction)
@@ -625,8 +684,8 @@ def decimate_chambers(full_model, case=None):
         _model.normals()
         _model.write_vtk(postscript='_decimated')
         # exit('checking decimation in decimate_chambers!')
-    if sum_chamber_points != FINAL_POINTS:
-        exit('Chamber_points: {}, but should be {}'.format(sum_chamber_points, FINAL_POINTS))
+    if sum_chamber_points != final_points:
+        exit('Chamber_points: {}, but should be {}'.format(sum_chamber_points, final_points))
 
     return full_model
 # ------------------------------------------------------------------------------------------------------------
@@ -905,7 +964,7 @@ def apply_single_transformation_to_all(path, input_base, version, start=0, end=0
                      range(start, end + 1)]
         print('Cases: {}'.format(cases))
         for case in cases:
-            single_model = Heart(case)
+            single_model = Model(case)
             print('Executing single_model.' + function_ + args)
             exec('single_model.' + function_ + args)
             if ext is not None:
@@ -922,7 +981,7 @@ def apply_function_to_all(path, input_base, version, start=1, end=20, ext='_new'
                      range(start, end + 1)]
         for c, case in enumerate(cases):
             print(c, case)
-            single_model = Heart(case)
+            single_model = Model(case)
             if function_ == 'align_with_rotation_only' and c == 0:
                 anchoring_element = single_model.get_center(single_model.threshold(7, 7))
                 direction_vector = single_model.get_center(single_model.threshold(8, 8)) - anchoring_element
@@ -1004,7 +1063,7 @@ if __name__ == '__main__':
 #         print(os.path.basename(element))
 #         element_name = os.path.basename(element).split('_')[0]
 #         print(element_name)
-#         model = Heart(element)
+#         model = Model(element)
 #         element_tag = [i+1 for i, elem in enumerate(model.list_of_elements) if elem == element_name][0]
 #         print('Element name: {}, element tag: {}'.format(element_name, element_tag))
 #         model.build_tag(label=element_tag)
@@ -1021,9 +1080,9 @@ if __name__ == '__main__':
 # -----Testing single function
 #     relevant_files = [x for x in relevant_files if 'plax' in x]
 #     print(relevant_files)
-#     model = Heart(filename=relevant_files[0])
+#     model = Model(filename=relevant_files[0])
 #     for lv in relevant_files:
-#         model = Heart(lv)
+#         model = Model(lv)
 #         get_lowest_septal_point(model)
 # ----------------------------
 
@@ -1032,7 +1091,7 @@ if __name__ == '__main__':
 # model.mesh = assign_tags(model.mesh, labels_and_ranges)
 # model.write_vtk(postscript='tagged', type_='UG')
 
-# model = Heart('h_case/h_case01_surface_la.vtk')  # Relative, path to the file
+# model = Model('h_case/h_case01_surface_la.vtk')  # Relative, path to the file
 # iterations = 200
 # model.smooth_laplacian(iterations)
 # # model.normals()
@@ -1043,8 +1102,8 @@ if __name__ == '__main__':
 # model.normals()
 # model.write_vtk(postscript='smooth')
 
-# model = Heart("/home/mat/Deformetrica/deterministic_atlas_ct/Temp/DeterministicAtlas__EstimatedParameters__Template_LV.vtk")
-#
+# model = Model("/home/mat/Deformetrica/deterministic_atlas_ct/Temp/DeterministicAtlas__EstimatedParameters__Template_LV.vtk")
+
 # # This is how we define modes. They come in pairs
 # # 'name of mode': scale
 # # names are from mode_01 to mode_41

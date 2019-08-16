@@ -90,7 +90,7 @@ class Model:
         camera = vtk.vtkCamera()
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
-        actor.GetProperty().SetColor(vtk.util.colors.red)
+        # actor.GetProperty().SetColor(vtk.util.colors.red)
         actor.GetProperty().SetOpacity(0.5)
 
         # Create the Renderer
@@ -336,12 +336,12 @@ class Model:
         max_dist = self.calculate_maximum_distance(bounds, distance)
         imp = vtk.vtkImplicitModeller()
         imp.SetInputConnection(self.mesh.GetOutputPort())
-        imp.SetSampleDimensions(200, 200, 200)
+        imp.SetSampleDimensions(400, 400, 400)
         imp.SetMaximumDistance(max_dist)
-        imp.SetScaleToMaximumDistance(1)
+        imp.ScaleToMaximumDistanceOn()
         imp.SetModelBounds(*(bounds * 1.5))
         imp.CappingOn()
-        imp.SetCapValue(20.0)
+        imp.SetCapValue(255)
         imp.Update()
         self.mesh = imp
 

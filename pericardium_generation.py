@@ -7,16 +7,17 @@ def create_pericarium(path_to_vtk_file=''):
     heart.extract_surface()
     heart.get_external_surface()
     heart.unstructured_grid_to_poly_data()
+    heart.write_vtk(postscript='_mesh_surf')
 
     peri = Model(path_to_vtk_file)
     peri.extract_surface()
     peri.implicit_modeller(1)
     peri.contouring()
     peri.get_external_surface()
-    peri.smooth_window(30, 0.05)
+    peri.smooth_window(20, 0.3)
     peri.unstructured_grid_to_poly_data()
-    peri.mesh = merge_elements(heart.mesh, peri.mesh)
-    peri.write_vtk()
+    # peri.mesh = merge_elements(heart.mesh, peri.mesh)
+    peri.write_vtk(postscript='_peri_surf')
 
 
 if __name__ == '__main__':

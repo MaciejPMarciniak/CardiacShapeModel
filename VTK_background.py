@@ -336,7 +336,7 @@ class Model:
         max_dist = self.calculate_maximum_distance(bounds, distance)
         imp = vtk.vtkImplicitModeller()
         imp.SetInputConnection(self.mesh.GetOutputPort())
-        imp.SetSampleDimensions(400, 400, 400)
+        imp.SetSampleDimensions(500, 500, 500)
         imp.SetMaximumDistance(max_dist)
         imp.ScaleToMaximumDistanceOn()
         imp.SetModelBounds(*(bounds * 1.5))

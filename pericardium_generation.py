@@ -1,4 +1,4 @@
-from VTK_background import Model, merge_elements
+from VTK_background import Model
 
 
 def create_pericarium(path_to_vtk_file=''):
@@ -14,9 +14,7 @@ def create_pericarium(path_to_vtk_file=''):
     peri.implicit_modeller(1)
     peri.contouring()
     peri.get_external_surface()
-    peri.smooth_window(20, 0.3)
     peri.unstructured_grid_to_poly_data()
-    # peri.mesh = merge_elements(heart.mesh, peri.mesh)
     peri.write_vtk(postscript='_peri_surf')
 
 

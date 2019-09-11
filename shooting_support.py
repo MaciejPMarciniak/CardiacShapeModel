@@ -126,34 +126,36 @@ if __name__ == '__main__':
     # TODO: Make sure that the element files of vtk and geo are sorted in the same way in 'modify_geo_files'
 
     # --- Dataset generation -------------------------------------------------------------------------------------------
-    # for i in range(0, 1):
-    #     output_path = '/media/mat/D6B7-122E/Final_models_{}'.format(str(i).zfill(2))  # Storing path
-    #     models_path = ('/home/mat/Deformetrica/deterministic_atlas_ct/'
-    #                    'output_shooting/extreme_shapes').format(i)  # Path to models, surface or volumetric
-    #     if not os.path.exists(output_path):
-    #         os.mkdir(output_path)
-    #     for j in range(0, 18):
-    #
-    #         sup = MeshTetrahedralization(main_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh',
-    #                                      models_path=models_path,
-    #                                      geo_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/geofiles',
-    #                                      temp_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/current_model',
-    #                                      output_path=output_path,
-    #                                      k_model=j,
-    #                                      template=False)
-    #         sup.pipeline_surf_2_tetra_mesh()
+    for i in range(40, 41):
+        # Path to models, surface or volumetric
+        models_path = ('/media/mat/BEDC-845B/'
+                       'Surface_meshes/output_shooting_{}/final_steps').format(i)
+        output_path = '/media/mat/BEDC-845B/Final_models_{}'.format(str(i).zfill(2))  # Storing path
+
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+        for j in range(25):
+
+            sup = MeshTetrahedralization(main_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh',
+                                         models_path=models_path,
+                                         geo_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/geofiles',
+                                         temp_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/current_model',
+                                         output_path=output_path,
+                                         k_model=j,
+                                         template=False)
+            sup.pipeline_surf_2_tetra_mesh()
 
     # --- Pericardium tetrahedralization -------------------------------------------------------------------------------
-    output_path = '/media/mat/BEDC-845B/peri_test'
-    models_path = '/home/mat/Deformetrica/deterministic_atlas_ct/Main_modes_export'
-    if not os.path.exists(output_path):
-        os.mkdir(output_path)
-    for j in range(1, 6):
-        sup = MeshTetrahedralization(main_path='/home/mat/Python/code/CT_mesh_handling/gmsh',
-                                     models_path=models_path,
-                                     geo_path='/home/mat/Python/code/CT_mesh_handling/gmsh/geofiles',
-                                     temp_path='/home/mat/Python/code/CT_mesh_handling/gmsh/current_model',
-                                     output_path=output_path,
-                                     k_model=j,
-                                     template=False)
-        sup.pipeline_add_peri()
+    # output_path = '/media/mat/BEDC-845B/Models_w_pericardium_4'
+    # models_path = '/media/mat/BEDC-845B/Final_models_04'
+    # if not os.path.exists(output_path):
+    #     os.mkdir(output_path)
+    # for j in [24]:  # range(25):
+    #     sup = MeshTetrahedralization(main_path='/home/mat/Python/code/CT_mesh_handling/gmsh',
+    #                                  models_path=models_path,
+    #                                  geo_path='/home/mat/Python/code/CT_mesh_handling/gmsh/geofiles',
+    #                                  temp_path='/home/mat/Python/code/CT_mesh_handling/gmsh/current_model',
+    #                                  output_path=output_path,
+    #                                  k_model=j,
+    #                                  template=False)
+    #     sup.pipeline_add_peri()

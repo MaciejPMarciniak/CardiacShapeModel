@@ -1037,20 +1037,21 @@ def h_case_pipeline(start_=1, end_=19, path=None):
 
 if __name__ == '__main__':
 
+    print('Model')
     # deformetrica_data_path = os.path.join('/home', 'mat', 'Deformetrica')
     # def_relevant_files = glob.glob(os.path.join(deformetrica_data_path,
     #                                             'deterministic_atlas_ct',
     #                                             'output_tmp10_def10_surf',
     #                                             'DeterministicAtlas__flow__heart__subject_sub??__tp_?.vtk'))
     # def_relevant_files.sort()
-
-    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'h_case')
-    relevant_files = glob.glob(os.path.join(absolute_data_path, 'h_case*.vtk'))
-    relevant_files.sort()
-
-    tetra_data_path = os.path.join('/home', 'mat', 'Deformetrica', 'deterministic_atlas_ct', 'gmsh', 'tetra_template')
-    tetra_files = glob.glob(os.path.join(tetra_data_path, '*tetra*'))
-    tetra_files.sort()
+    #
+    # absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'h_case')
+    # relevant_files = glob.glob(os.path.join(absolute_data_path, 'h_case*.vtk'))
+    # relevant_files.sort()
+    #
+    # tetra_data_path = os.path.join('/home', 'mat', 'Deformetrica', 'deterministic_atlas_ct', 'gmsh', 'tetra_template')
+    # tetra_files = glob.glob(os.path.join(tetra_data_path, '*tetra*'))
+    # tetra_files.sort()
 
 # -----Main Pipeline
 #     h_case_pipeline(path=absolute_data_path, start_=1, end_=19)

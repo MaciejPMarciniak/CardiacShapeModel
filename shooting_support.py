@@ -93,6 +93,7 @@ class MeshTetrahedralization:
     def tag_and_merge_surf_elements(self):
         models = []
         surf_files = glob.glob(os.path.join(self.temp_path, 'Shooting_'+str(self.k_model)+'**.vtk'))
+        surf_files.sort()
         print('surf_files')
         print(surf_files)
         for i, element in enumerate(surf_files):
@@ -154,27 +155,17 @@ class MeshTetrahedralization:
 
 # --- END MeshTetrahedralization----------------------------------------------------------------------------------------
 
+def merged_shapes_generation(id_from,
+                              id_to,
+                              models_path='/home/mat/Deformetrica/deterministic_atlas_ct/output_shooting/final_steps_3sd',
+                              output_path='/media/mat/BEDC-845B/Surface_3_sd',
+                              type='tetra'):
+    assert id_from < id_to, 'Insert proper range of IDs to create meshes from'
+    assert os.path.exists(models_path), 'Provide proper path to models'
+    if not os.path.exists(output_path):
+        os.mkdir(output_path)
 
-if __name__ == '__main__':
-
-    # ---Extreme shapes generation--------------------------------------------------------------------------------------
-    # models_path = '/home/mat/Deformetrica/deterministic_atlas_ct/output_shooting/final_steps_2sd'
-    # output_path = '/media/mat/BEDC-845B/Tetra_sd_2'
-    # for j in range(18):
-    #
-    #     sup = MeshTetrahedralization(main_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh',
-    #                                  models_path=models_path,
-    #                                  geo_path=
-    #                                  temp_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/current_model',
-    #                                  output_path=output_path,
-    #                                  k_model=j,
-    #                                  template=False)
-    #     sup.pipeline_surf_2_tetra_mesh()
-
-    # ---Extreme surface shapes generation------------------------------------------------------------------------------
-    models_path = '/home/mat/Deformetrica/deterministic_atlas_ct/output_shooting/final_steps_2sd'
-    output_path = '/media/mat/BEDC-845B/Surface_2_sd'
-    for j in range(18, 36):
+    for j in range(id_from, id_to):
 
         sup = MeshTetrahedralization(main_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh',
                                      models_path=models_path,
@@ -184,39 +175,33 @@ if __name__ == '__main__':
                                      output_path=output_path,
                                      k_model=j,
                                      template=False)
-        sup.pipeline_aggr_surf_mesh()
+        if type == 'surface':
+            sup.pipeline_aggr_surf_mesh()
+        elif type == 'w_pericardium':
+            sup.pipeline_add_peri()
+        elif type == 'tetra':
+            sup.pipeline_surf_2_tetra_mesh()
+        else:
+            exit('Provide proper model generation type: "tetra", "surface" or "w_pericardium"')
 
-    # --- Dataset generation -------------------------------------------------------------------------------------------
-    # for i in range(40, 41):
-    #     # Path to models, surface or volumetric
-    #     models_path = ('/media/mat/BEDC-845B/'
-    #                    'Surface_meshes/output_shooting_{}/final_steps').format(i)
-    #     output_path = '/media/mat/BEDC-845B/Final_models_{}'.format(str(i).zfill(2))  # Storing path
-    #
-    #     if not os.path.exists(output_path):
-    #         os.mkdir(output_path)
-    #     for j in range(14, 25):
-    #
-    #         sup = MeshTetrahedralization(main_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh',
-    #                                      models_path=models_path,
-    #                                      geo_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/geofiles',
-    #                                      temp_path='/home/mat/Deformetrica/deterministic_atlas_ct/gmsh/current_model',
-    #                                      output_path=output_path,
-    #                                      k_model=j,
-    #                                      template=False)
-    #         sup.pipeline_surf_2_tetra_mesh()
 
-    # --- Pericardium tetrahedralization -------------------------------------------------------------------------------
-    # output_path = '/media/mat/BEDC-845B/PeriPCAExtremeMeshes'
-    # models_path = '/media/mat/BEDC-845B/Tetra_sd_2'
-    # if not os.path.exists(output_path):
-    #     os.mkdir(output_path)
-    # for j in range(18):  # range(25):
-    #     sup = MeshTetrahedralization(main_path='/home/mat/Python/code/CT_mesh_handling/gmsh',
-    #                                  models_path=models_path,
-    #                                  geo_path='/home/mat/Python/code/CT_mesh_handling/gmsh/geofiles',
-    #                                  temp_path='/home/mat/Python/code/CT_mesh_handling/gmsh/current_model',
-    #                                  output_path=output_path,
-    #                                  k_model=j,
-    #                                  template=False)
-    #     sup.pipeline_add_peri()
+def random_dataset_generation(cohort_from,
+                              cohort_to,
+                              id_from,
+                              id_to):
+
+    for i in range(cohort_from, cohort_to):
+
+        # Path to models, surface or volumetric
+        models_path = ('/media/mat/BEDC-845B/'
+                       'Surface_meshes/output_shooting_{}/final_steps').format(i)
+        output_path = '/media/mat/BEDC-845B/Final_models_{}'.format(str(i).zfill(2))  # Storing path
+
+        merged_shapes_generation(id_from, id_to, models_path, output_path, type='tetra')
+
+
+if __name__ == '__main__':
+
+    merged_shapes_generation(18, 19, type='surface')
+
+

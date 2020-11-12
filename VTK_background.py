@@ -1028,10 +1028,7 @@ def h_case_pipeline(start_=1, end_=19, path=None):
     # # save slices as png
     # apply_single_transformation_to_all(path, input_base='h_case', version='plax', start=start_, end=end_, ext=None,
     #                                    function_='write_png', args='()')
-    # decimate_heart
-    # apply_function_to_all(path, 'case_', '_pd_centered', start=start_, end=end_, ext='_delete',
-    # function_='decimate_heart',
-    # args='case')
+
     pass
 
 
@@ -1078,40 +1075,3 @@ if __name__ == '__main__':
 #     final_model.write_vtk(postscript='merged', type_='UG')
 # -----------------------------------------------------------------------
 
-# -----Testing single function
-#     relevant_files = [x for x in relevant_files if 'plax' in x]
-#     print(relevant_files)
-#     model = Model(filename=relevant_files[0])
-#     for lv in relevant_files:
-#         model = Model(lv)
-#         get_lowest_septal_point(model)
-# ----------------------------
-
-# -----Frangi dataset------------------------------------------------------------------------------------------
-# labels_and_ranges = ({'label': 1, 'range': (0, 472726)}, {'label': 2, 'range': (472726, 688801)})
-# model.mesh = assign_tags(model.mesh, labels_and_ranges)
-# model.write_vtk(postscript='tagged', type_='UG')
-
-# model = Model('h_case/h_case01_surface_la.vtk')  # Relative, path to the file
-# iterations = 200
-# model.smooth_laplacian(iterations)
-# # model.normals()
-# model.write_vtk(postscript='_smooth_' + str(iterations))
-# decimate_chambers()
-
-# model.smooth_window(100, 0.0001)
-# model.normals()
-# model.write_vtk(postscript='smooth')
-
-# model = Model("/home/mat/Deformetrica/deterministic_atlas_ct/Temp/DeterministicAtlas__EstimatedParameters__Template_LV.vtk")
-
-# # This is how we define modes. They come in pairs
-# # 'name of mode': scale
-# # names are from mode_01 to mode_41
-# # scale can be positive or negative, 0 means no deformation in that direction
-# # modes can be added or removed
-# # modes = {'mode_01': -2.5, 'mode_02': -2.4, 'mode_03': 2.2, 'mode_07': 1.2}
-# # model.apply_modes(modes)
-# model.visualize_mesh()
-# model.write_vtk(postscript='warped')
-# ------------------------------------------------------------------------------------------------------------

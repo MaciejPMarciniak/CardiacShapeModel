@@ -155,8 +155,8 @@ class MeshTetrahedralization:
 
 # --- END MeshTetrahedralization----------------------------------------------------------------------------------------
 
-def merged_shapes_generation(id_from,
-                              id_to,
+def merged_shapes_generation(id_from=0,
+                              id_to=20,
                               models_path='/home/mat/Deformetrica/deterministic_atlas_ct/output_shooting/final_steps_3sd',
                               output_path='/media/mat/BEDC-845B/Surface_3_sd',
                               type='tetra'):
@@ -202,6 +202,6 @@ def random_dataset_generation(cohort_from,
 
 if __name__ == '__main__':
 
-    merged_shapes_generation(18, 19, type='surface')
+    random_dataset_generation(1, 41, 0, 25)
 
 

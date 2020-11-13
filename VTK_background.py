@@ -997,81 +997,49 @@ def apply_function_to_all(path, input_base, version, start=1, end=20, ext='_new'
 # ------------------------------------------------------------------------------------------------------------
 
 
-def h_case_pipeline(start_=1, end_=19, path=None):
+def h_case_pipeline(start_=1, end_=19, path=None, functions=None):
     # TODO: Problem with this solution is that the files are read and written at every step. Should become
     # TODO: a pipeline, that produces only one file in the end, using a list of functions (with arguments)
 
-    # Remove all intermittent results just in case!!!
-    # extract surfaces
-    # apply_single_transformation_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='_',
-    #                                    ext_type='PolyData', function_='extract_surface')
-    #
-    # # scale the meshes
-    # apply_single_transformation_to_all(path, input_base='h_case', version='_', start=start_, end=end_, ext='',
-    #                                    ext_type='UG', function_='scale', args='((.001, .001, .001))')
-    # center the meshes
-    # apply_single_transformation_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='',
-    #                                    ext_type='UG', function_='translate_to_center')
-    # clean (if possible) poorly built meshes
-    # apply_single_transformation_to_all(path, input_base='h_case', version='_', start=start_, end=end_, ext='',
-    #                                    ext_type='UG', function_='clean_polydata', args='(1e-6, True)')
-    # align the meshes
-    apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='algn',
-                          ext_type='UG', function_='alignment', args='labels=(7, 8), ')
-    # split chambers
-    apply_function_to_all(path, 'h_case', version='algn',  start=start_, end=end_, ext='_surface_full',
-                          function_='split_chambers', args='case, return_elements=True')
-    # -----Slice extraction-----
-    # create slices
-    # apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='plax',
-    #                       function_='create_plax_slices', args='')
-    # # save slices as png
-    # apply_single_transformation_to_all(path, input_base='h_case', version='plax', start=start_, end=end_, ext=None,
-    #                                    function_='write_png', args='()')
+    if 'surface' in functions:
+        apply_single_transformation_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='',
+                                           ext_type='PolyData', function_='extract_surface')
 
-    pass
+    if 'scale' in functions:
+        apply_single_transformation_to_all(path, input_base='h_case', version='_', start=start_, end=end_, ext='',
+                                           ext_type='UG', function_='scale', args='((.001, .001, .001))')
+
+    if 'center' in functions:
+        apply_single_transformation_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='',
+                                           ext_type='UG', function_='translate_to_center')
+
+    if 'clean' in functions:
+        apply_single_transformation_to_all(path, input_base='h_case', version='_', start=start_, end=end_, ext='',
+                                           ext_type='UG', function_='clean_polydata', args='(1e-6, True)')
+
+    if 'align' in functions:
+        apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='',
+                              ext_type='UG', function_='alignment', args='labels=(7, 8), ')
+
+    if 'split' in functions:
+        apply_function_to_all(path, 'h_case', version='algn',  start=start_, end=end_, ext='',
+                              function_='split_chambers', args='case, return_elements=True')
+
+    # -----Slice extraction-----
+    if 'create slices' in functions:
+        apply_function_to_all(path, input_base='h_case', version='', start=start_, end=end_, ext='plax',
+                              function_='create_plax_slices', args='')
+
+    if 'create slices' and 'save_slices' in functions:
+        apply_single_transformation_to_all(path, input_base='h_case', version='plax', start=start_, end=end_, ext='',
+                                           function_='write_png', args='()')
 
 
 if __name__ == '__main__':
 
-    print('Model')
-    # deformetrica_data_path = os.path.join('/home', 'mat', 'Deformetrica')
-    # def_relevant_files = glob.glob(os.path.join(deformetrica_data_path,
-    #                                             'deterministic_atlas_ct',
-    #                                             'output_tmp10_def10_surf',
-    #                                             'DeterministicAtlas__flow__heart__subject_sub??__tp_?.vtk'))
-    # def_relevant_files.sort()
-    #
-    # absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'h_case')
-    # relevant_files = glob.glob(os.path.join(absolute_data_path, 'h_case*.vtk'))
-    # relevant_files.sort()
-    #
-    # tetra_data_path = os.path.join('/home', 'mat', 'Deformetrica', 'deterministic_atlas_ct', 'gmsh', 'tetra_template')
-    # tetra_files = glob.glob(os.path.join(tetra_data_path, '*tetra*'))
-    # tetra_files.sort()
+    function_list = ['surface', 'clean']
+    h_case_pipeline(path=os.path.join('/home', 'mat', 'Python', 'data', 'h_case'), start_=1, end_=19,
+                    functions=function_list)
 
-# -----Main Pipeline
-#     h_case_pipeline(path=absolute_data_path, start_=1, end_=19)
-# -----------------
 
-# ----Building models for electrophysiological simulations
-#     models = []
-#     for element in tetra_files:
-#         print(element)
-#         print(os.path.basename(element))
-#         element_name = os.path.basename(element).split('_')[0]
-#         print(element_name)
-#         model = Model(element)
-#         element_tag = [i+1 for i, elem in enumerate(model.list_of_elements) if elem == element_name][0]
-#         print('Element name: {}, element tag: {}'.format(element_name, element_tag))
-#         model.build_tag(label=element_tag)
-#         model.change_tag_label()
-#         models.append(model)
-#
-#     final_model = models.pop(0)
-#     for model_to_merge in models:
-#         final_model.mesh = merge_elements(final_model.mesh, model_to_merge.mesh)
-#     final_model.tetrahedralize()
-#     final_model.write_vtk(postscript='merged', type_='UG')
-# -----------------------------------------------------------------------
 

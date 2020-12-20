@@ -1,4 +1,4 @@
-from VTK_background import Model
+from Mesh import Model
 
 
 def create_pericarium(path_to_vtk_file=''):

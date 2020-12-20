@@ -39,10 +39,10 @@ to the meshing tags.
 ![smooth plots](images/OriginalComplete.png  "One of the original meshes")
 
 ### Synthetic model
-![smooth plots](images/SyntheticComplete.png  "Synthetic mesh on the extreme of mode 2")
+![smooth plots](images/SyntheticComplete.png  "Synthetic mesh with random mode weights")
 
-### Synthetic model with random mode weights
-![smooth plots](images/ExtremeComplete.png  "Synthetic mesh with random mode weights")
+### Extremes along one of the shape modes
+![smooth plots](images/ExtremeComplete.png  "Extreme shapes")
 
 
 ---

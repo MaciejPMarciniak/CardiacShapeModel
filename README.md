@@ -107,11 +107,10 @@ aha.plot_myocardial_work(filename='', data=None, echop=False)
 
 ---
 # Credits
-EuroEcho 2019 Abstract:
-*Myocardial work in hypertension and mitral regurgitation- insights from non-invasive assessment of left ventricular 
-pressure-strain relations*
-
-Acknowledgements to Joao Filipe Fernandes and Filip Loncaric for their invaluable input. 
+Please quote the following publication:
+Cristobal Rodero, Maciej Marciniak, Marina Strocchi, Stefano Longobardi, John Whitaker, Mark D. O'Neill, Karli Gillette,
+Christoph Augustin, Gernot Plank, Ed Vigmond, Pablo Lamata, Steven A. Niederer, *Linking statistical shape models and simulated function in
+the healthy adult human heart.* PLoS Computational Biology. 2020.
 
 ---
 # License

@@ -9,7 +9,10 @@ amount of electrical and mechanical function variance only explain a small amoun
 cardiac simulations and demonstrates that subtle changes in cardiac anatomy can have a large impact on cardiac function.
 
 The codebase provides a set of methods for mesh generation, 3D alignment for atlas generation, tetrahedralisation of the
-surface meshes with gmsh, rigid mesh manipulation, deformation and file management.
+surface meshes with gmsh, rigid mesh manipulation, deformation and file management. 
+
+*The project is an element of the framework used for statistical shape analysis of tetrahedral meshes, which allows for 
+studies of cardiac shape, function and statistical reasoning.*
 
 ## The heart model
 Briefly, we segmented four-chamber hearts from CT images using an automatic segmentation step with post-processing using Seg3D. The final segmentation consisted of 31
@@ -33,13 +36,13 @@ to the meshing tags.
 ---
 # Screenshots
 ### Original model
-![smooth plots](images/17_AHA_MW.png  "One of the original meshes")
+![smooth plots](images/OriginalComplete.png  "One of the original meshes")
 
 ### Synthetic model
-![smooth plots](images/18_AHA_Echo_MW.png  "Synthetic mesh on the extreme of mode 2")
+![smooth plots](images/SyntheticComplete.png  "Synthetic mesh on the extreme of mode 2")
 
 ### Synthetic model with random mode weights
-![smooth plots](images/18_AHA_strain.png  "Synthetic mesh with random mode weights")
+![smooth plots](images/ExtremeComplete.png  "Synthetic mesh with random mode weights")
 
 
 ---

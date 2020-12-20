@@ -4,3 +4,9 @@ venv/
 meshlabserv.py
 mesh.sh
 case_/
+images/extremen.png
+images/extremep.png
+images/Original.png
+images/Original_detail.png
+images/Synthetic.png
+images/Synthetic_detail.png

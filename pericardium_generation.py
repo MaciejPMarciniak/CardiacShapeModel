@@ -19,5 +19,5 @@ def create_pericarium(path_to_vtk_file=''):
 
 
 if __name__ == '__main__':
-    vtk_file = "/home/mat/Deformetrica/deterministic_atlas_ct/Main_modes_export/Template_tetra.vtk"
+    vtk_file = "C:\Data\DataGeneration\Extreme3\mode1neg.vtk"
     create_pericarium(vtk_file)

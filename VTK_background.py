@@ -1,5 +1,6 @@
 import vtk
-from vtk.util.numpy_support import vtk_to_numpy
+from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import glob
@@ -591,8 +592,10 @@ class Model:
         elif type_ == 'UG':
             print('Saving Unstructured Grid...')
             writer = vtk.vtkUnstructuredGridWriter()
+        elif type_ == 'SG':
+            writer = vtk.vtkStructuredGridWriter()
         else:
-            exit("Select \'Polydata\' or \'UG\' as type of the saved mesh")
+            exit("Select \'Polydata\' \'SG\' or \'UG\' as type of the saved mesh")
         writer.SetInputConnection(self.mesh.GetOutputPort())
         writer.SetFileName(output_filename)
         writer.Update()
@@ -789,14 +792,15 @@ def change_elem_tag(_mesh, label):
 
 
 def assign_tags(_mesh, label_and_range_tuple=({},)):
-    _mesh.GetOutput().GetAttributes(1).GetArray(0).SetName('elemTag')
-    _mesh.GetOutput().GetAttributes(0).RemoveArray('elemTag')  # remove point attribute
+    print(_mesh.GetOutput().GetAttributes(0))
+    _mesh.GetOutput().GetAttributes(0).GetArray(0).SetName('elemTag')
+    # _mesh.GetOutput().GetAttributes(0).RemoveArray('elemTag')  # remove point attribute
     for label_and_range in label_and_range_tuple:
         label = label_and_range['label']
         range_of_points = label_and_range['range']
         print('Assiging label {} to {} points'.format(label, range_of_points[1]))
         for id in range(*range_of_points):
-            _mesh.GetOutput().GetAttributes(1).GetArray('elemTag').SetTuple(id, (float(label),))
+            _mesh.GetOutput().GetAttributes(0).GetArray('elemTag').SetTuple(id, (float(label),))
     return _mesh
 
 
@@ -1044,14 +1048,63 @@ if __name__ == '__main__':
     #                                             'DeterministicAtlas__flow__heart__subject_sub??__tp_?.vtk'))
     # def_relevant_files.sort()
 
-    absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'h_case')
-    relevant_files = glob.glob(os.path.join(absolute_data_path, 'h_case*.vtk'))
-    relevant_files.sort()
+    # absolute_data_path = os.path.join('/home', 'mat', 'Python', 'data', 'h_case')
+    # relevant_files = glob.glob(os.path.join(absolute_data_path, 'h_case*.vtk'))
+    # # relevant_files.sort()
+    # #
+    # tetra_data_path = os.path.join('/home', 'mat', 'Deformetrica', 'deterministic_atlas_ct', 'gmsh', 'tetra_template')
+    # tetra_files = glob.glob(os.path.join(tetra_data_path, '*tetra*'))
+    # tetra_files.sort()
 
-    tetra_data_path = os.path.join('/home', 'mat', 'Deformetrica', 'deterministic_atlas_ct', 'gmsh', 'tetra_template')
-    tetra_files = glob.glob(os.path.join(tetra_data_path, '*tetra*'))
-    tetra_files.sort()
+# -----Playing with genr meshes-----------------------------------------------------------------------------------------
+    from mpl_toolkits import mplot3d
+    # absolute_data_path = r'C:\Data\ProjectDevelopmentalAtlas\GenerationRTest\ConFiles\AtlasData\Case101066Ph27'
+    # model = np.genfromtxt(os.path.join(absolute_data_path, 'binary101066Ph27.csv'))
+    # print(model)
+    # model = model[1:]
+    # model = model.reshape((14, 256, 256))
+    # model = model[:13, :, :]
+    # positions = np.where((model > 4) & (model < 11))
+    # print(positions)
+    # print(len(positions[0]), len(positions[1]), len(positions[2]))
+    # fig = plt.figure()
+    # ax = plt.axes(projection='3d')
+    # ax.scatter3D(positions[0], positions[1], positions[2], c=model[(model > 4) & (model < 11)].ravel())
+    # plt.show()
+    # print(model.shape)
+    # print(np.unique(model))
+    # model[(0.5 < model) & (model < 9)] = 2
+    # model[(model > 9) & (model < 11)] = 1
+    # print(np.unique(model))
+    # # model = np.flipud(model)
+    # vtk_data_array = numpy_to_vtk(
+    #     num_array=model.ravel(),
+    #     # ndarray contains the fitting result from the points. It is a 3D array
+    #     deep=True,
+    #     array_type=vtk.VTK_INT)
+    #
+    # # Convert the VTK array to vtkImageData
+    # img_vtk = vtk.vtkImageData()
+    # img_vtk.SetDimensions(model.shape)
+    # img_vtk.SetSpacing(1.09, 1.09, 8.0)
+    # img_vtk.GetPointData().SetScalars(vtk_data_array)
+    # writer = vtk.vtkDataSetWriter()
+    # writer.SetInputData(img_vtk)
+    # writer.SetFileName(os.path.join(absolute_data_path, 'asdf.vtk'))
+    # writer.Update()
+    # writer.Write()
+# ----------------------------------------------------------------------------------------------------------------------
+    # …
+    # implicit_volume = vtk.vtkImplicitVolume()  # I want a vtkImplicitDataSet, whose input is a vtkDataSet
+    # implicit_volume.SetVolume(img_vtk)
 
+    # # Windows
+    # model.threshold(1, 15)
+    # labels_and_ranges = ({'label': 2, 'range': (0, 10441)}, {'label': 1, 'range': (10442, 25887)})
+    # model.mesh = assign_tags(model.mesh, labels_and_ranges)
+    # model.write_vtk(type_='SG')
+
+    # model.write_vtk(postscript='tagged', type_='UG')
 # -----Main Pipeline
 #     h_case_pipeline(path=absolute_data_path, start_=1, end_=19)
 # -----------------

@@ -1,4 +1,4 @@
-# Generation of detaild 3D cardiac meshes for electromechanical simulations
+# Generation of detailed 3D cardiac meshes for electromechanical simulations
 The heart adapts to physiological and pathological changes in loading. This can cause the heart to change size and shape. These changes can in turn have significant impact
 on cardiac function. However, it is not clear if large changes in function are caused by large changes in shape or can smaller changes also be important. Biophysical
 computational models of the heart provide a quantitative framework for mapping changes in anatomy to whole heart function. We created a publicly available healthy

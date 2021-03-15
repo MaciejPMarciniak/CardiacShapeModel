@@ -22,10 +22,11 @@ all elements except the blood pools and papillary muscles using the Computationa
 the main differences of our meshes with respect to other whole-heart meshes, is the addition of auxiliary anatomical components needed to add mechanics boundary
 conditions.
 
-We have made all the meshes from the CT and synthetic cohort available for the
-community in .vtk format available on [ZENODO DOI 1 and ZENODO DOI 2]. We
-have added 1000 more meshes modifying the PCA weights randomly withing 2 SD
-range [ZENODO DOI 3]. The same anatomical structures are present in all the meshes
+We have made all the [meshes from the CT](https://doi.org/10.5281/zenodo.4590294) and
+ [synthetic cohort](https://doi.org/10.5281/zenodo.4593739) available for the
+community in .vtk format. We
+have added [1000 more meshes](https://doi.org/10.5281/zenodo.4506930) modifying the PCA weights randomly withing 2 SD
+range. The same anatomical structures are present in all the meshes
 described, but fibres and UVC were not included in the extra 1000 batch.
 A VTK file for each mesh was included (in ASCII) as an UNSTRUCTURED GRID. In all
 the cases the following fields were included: POINTS, with the coordinates of the points

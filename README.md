@@ -44,73 +44,12 @@ to the meshing tags.
 ### Extremes along one of the shape modes
 ![smooth plots](images/ExtremeComplete.png  "Extreme shapes")
 
-
----
-# How2use
-Two methods creating the most common plots are provided. However, using the basic functions it is possible to generate
-different plots, as long as the provided data structure is consistent.
-
-**Example Call**
-```python
-# List of segments
-segments_18 = ['Basal Anterior', 'Basal Anteroseptal', 'Basal Inferoseptal',
-               'Basal Inferior', 'Basal Inferolateral', 'Basal Anterolateral',
-               'Mid Anterior', 'Mid Anteroseptal', 'Mid Inferoseptal',
-               'Mid Inferior', 'Mid Inferolateral', 'Mid Anterolateral',
-               'Apical Anterior', 'Apical Anteroseptal', 'Apical Inferoseptal',
-               'Apical Inferior', 'Apical Inferolateral', 'Apical Anterolateral']
-# Segmental values
-exp_strain_data = [-13, -14, -16, -19, -19, -18, -19, -23, -19, -21, -20, -20, -24, -27, -28, -25, -26, -22]
-# Number of segments to plot
-n_seg = len(exp_strain_data)
-
-strain_dict = {k: v for (k, v) in zip(segments_18, exp_strain_data)}
-
-from ahasmoothplot import SmoothAHAPlot
-
-# Create object
-aha = SmoothAHAPlot(strain_dict, output_path='./images', n_segments=n_seg)
-# Plot strain
-aha.plot_strain('18_AHA_strain.png', data=strain_dict)
-```
-
----
-**Input**
-
-*segments*: dictionary/pandas Series with names of the segments as keys/index and corresponding segmental values
-
-*output_path*: folder where the plots will be saved
-
-*n_segments*: number of segments (must be 17 or 18 and correspond to length of the *segments*)
-
----
-**Methods**
-```python
-aha.plot_strain(filename='', data=None, echop=False)
-
-```
-*filename*: saved figure file name
-
-*data*: dictionary/pandas Series with names of the segments as keys/index and corresponding segmental values
-
-*echop*: whether to use the EchoPAC format of the plot
-
-```python
-aha.plot_myocardial_work(filename='', data=None, echop=False)
-
-```
-*filename*: saved figure file name
-
-*data*: dictionary/pandas Series with names of the segments as keys/index and corresponding segmental values
-
-*echop*: whether to use the EchoPAC format of the plot
-
 ---
 # Credits
 Please quote the following publication:
 Cristobal Rodero, Maciej Marciniak, Marina Strocchi, Stefano Longobardi, John Whitaker, Mark D. O'Neill, Karli Gillette,
-Christoph Augustin, Gernot Plank, Ed Vigmond, Pablo Lamata, Steven A. Niederer, *Linking statistical shape models and simulated function in
-the healthy adult human heart.* PLoS Computational Biology. 2020.
+Christoph Augustin, Gernot Plank, Ed Vigmond, Pablo Lamata, Steven A. Niederer. (2021) *Linking statistical shape models and simulated function in
+the healthy adult human heart.* DOI: https://doi.org/10.1371/journal.pcbi.1008851
 
 ---
 # License

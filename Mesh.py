@@ -448,7 +448,9 @@ class Model:
         print('thresholding')
         threshold = vtk.vtkThreshold()
         threshold.SetInputConnection(self.mesh.GetOutputPort())
-        threshold.ThresholdBetween(low, high)
+        threshold.SetLowerThreshold(low)
+        threshold.SetUpperThreshold(high)
+        threshold.SetThresholdFunction(vtk.vtkThreshold.THRESHOLD_BETWEEN)
         threshold.Update()
         # choose scalars???
         return threshold
